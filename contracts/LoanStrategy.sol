@@ -9,4 +9,6 @@ interface LoanStrategy {
     function redeemUnderlying(uint256 redeemAmount) external;
 
     function repayBorrow(address payable who, uint256 repayAmount) external;
+
+    function borrowBalanceCurrent(address user) external returns (uint256);
 }

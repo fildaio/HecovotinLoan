@@ -23,6 +23,8 @@ interface FildaInterface {
     function repayBorrowBehalf(address borrower, uint256 repayAmount)
         external
         returns (uint256);
+
+    function borrowBalanceCurrent(address user) external returns (uint256);
 }
 
 contract LoanViaFilda is LoanStrategy {
@@ -46,5 +48,13 @@ contract LoanViaFilda is LoanStrategy {
         override
     {
         filda.repayBorrowBehalf(who, repayAmount);
+    }
+
+    function borrowBalanceCurrent(address user)
+        external
+        override
+        returns (uint256)
+    {
+        return filda.borrowBalanceCurrent(user);
     }
 }

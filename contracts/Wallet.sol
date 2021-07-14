@@ -15,34 +15,35 @@ contract Wallet is AccessControl {
         uint256 amount;
     }
 
-    struct ClearObject {
-        address voter;
-        uint256 voteTo;
-        uint256 voted;
-        uint256 debt;
-        address firstClearer;
-        address secondClearer;
-        uint256 revokeVoteBlock;
-    }
+    // struct LiquidateObject {
+    //     address voter;
+    //     // uint256 voted;
+    //     uint256 debt;
+    //     address firstLiquidater;
+    //     address secondLiquidater;
+    //     // uint256 revokeVoteBlock;
+    // }
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant CONFIG_ROLE = keccak256("CONFIG_ROLE");
 
     VotingStrategy public votingContract;
     LoanStrategy public loanContract;
+    bool public isLiquidating = false;
+    bool public isExist = false;
 
+    address private _owner;
     uint256 private _minVoteAmount = 1e18;
     uint256 private _borrowRate = 80;
     uint256 private _emergencyBorrowRate = 98;
-    uint256 private _clearRate = 90;
-    uint256 private _bonusRateForClearer = 3;
-    ClearObject[] private _clearObjects;
-    mapping(address => uint256) private _loan;
-    mapping(address => uint256) _totalVoted;
-    mapping(address => mapping(uint256 => uint256)) private _voted;
-    mapping(address => mapping(uint256 => RedeemingState)) private _redeeming;
-    mapping(address => mapping(uint256 => RedeemingState))
-        private _redeemingWithLoan;
+    uint256 private _liquidateRate = 90;
+    uint256 private _bonusRateForLiquidater = 3;
+    // LiquidateObject[] private _liquidateObjects;
+    address private _firstLiquidater;
+    address private _secondLiquidater;
+    uint256 private _loan;
+    uint256 private _totalVoted;
+    mapping(uint256 => uint256) private _voted;
     address payable private _deployedVoteContract = payable(address(0x123));
     address payable private _deployedLoanContract = payable(address(0x123));
     HTTokenInterface private _HTT = HTTokenInterface(address(0x123));
@@ -50,10 +51,13 @@ contract Wallet is AccessControl {
     // Events
     event voteEvent(address voter, uint256 pid, uint256 amount);
 
-    constructor() {
+    constructor(address owner) {
         _setupRole(ADMIN_ROLE, msg.sender);
         _setupRole(CONFIG_ROLE, msg.sender);
 
+        isExist = true;
+
+        _owner = owner;
         votingContract = VotingStrategy(_deployedVoteContract);
         loanContract = LoanStrategy(_deployedLoanContract);
     }
@@ -70,10 +74,10 @@ contract Wallet is AccessControl {
 
         bool done = votingContract.vote{value: amount}(pid);
         if (done == true) {
-            _voted[msg.sender][pid] += amount;
-            _totalVoted[msg.sender] += amount;
+            _voted[pid] += amount;
+            _totalVoted += amount;
 
-            _HTT.mint(amount);
+            _HTT.mint(amount, _owner);
             loanContract.mint(amount);
 
             emit voteEvent(msg.sender, pid, amount);
@@ -84,23 +88,24 @@ contract Wallet is AccessControl {
         votingContract.claim(payable(msg.sender));
     }
 
-    function redeem(uint256 pid, uint256 amount) public {
-        if (_redeeming[msg.sender][pid].blockNumber == 0) {
-            require(_voted[msg.sender][pid] >= amount);
-            votingContract.revokeVote(pid, amount);
-            _redeeming[msg.sender][pid] = RedeemingState(block.number, amount);
-        }
+    function revokeVote(uint256 pid, uint256 amount) public {
+        require(_voted[pid] >= amount);
+        votingContract.revokeVote(pid, amount);
+    }
 
-        if (block.number.sub(_redeeming[msg.sender][pid].blockNumber) > 86400) {
-            uint256 tempAmount = _redeeming[msg.sender][pid].amount;
-            votingContract.redeem(pid, tempAmount);
+    function isWithdrawable(uint256 pid) public returns (bool) {
+        return votingContract.isWithdrawable(address(this), pid);
+    }
 
-            _redeeming[msg.sender][pid] = RedeemingState(0, 0);
-            _voted[msg.sender][pid] -= tempAmount;
-            _totalVoted[msg.sender] -= tempAmount;
+    function withdraw(uint256 pid) public returns (uint256) {
+        require(isWithdrawable(pid) == true);
 
-            payable(msg.sender).transfer(tempAmount);
-        }
+        uint256 tempAmount = votingContract.withdraw(pid);
+        _voted[pid] -= tempAmount;
+        _totalVoted -= tempAmount;
+        payable(msg.sender).transfer(tempAmount);
+
+        return tempAmount;
     }
 
     function rePay(uint256 repayAmount) public {
@@ -109,116 +114,82 @@ contract Wallet is AccessControl {
         loanContract.repayBorrow(caller, repayAmount);
     }
 
-    function redeemAndRePay(uint256 pid, uint256 repayAmount) public {
-        require(
-            _loan[msg.sender] <=
-                _voted[msg.sender][pid].mul(_borrowRate).div(100)
-        );
+    function redeemAndRePay(uint256 pid) public {
+        require(_loan <= _voted[pid].mul(_borrowRate).div(100));
+        require(isWithdrawable(pid) == true);
 
-        if (_redeemingWithLoan[msg.sender][pid].blockNumber == 0) {
-            votingContract.revokeVote(pid, repayAmount);
-            _redeemingWithLoan[msg.sender][pid] = RedeemingState(
-                block.number,
-                repayAmount
-            );
-        }
-
-        if (
-            block.number.sub(_redeemingWithLoan[msg.sender][pid].blockNumber) >
-            86400
-        ) {
-            uint256 amount = _redeemingWithLoan[msg.sender][pid].amount;
-            _redeemingWithLoan[msg.sender][pid] = RedeemingState(0, 0);
-            _voted[msg.sender][pid] -= amount;
-            _totalVoted[msg.sender] -= amount;
-
-            votingContract.redeem(pid, amount);
-            loanContract.repayBorrow(payable(msg.sender), amount);
-        }
+        uint256 amount = withdraw(pid);
+        _HTT.burn(amount, _owner);
+        votingContract.withdraw(pid);
+        loanContract.repayBorrow(payable(msg.sender), amount);
     }
 
-    function clear(uint256 index) public {
-        ClearObject storage tempClearObject = _clearObjects[index];
+    function beginLiquidate() public {
+        require(isLiquidating == true);
+        uint256 total = votingContract.getPoolLength();
+        for (uint256 i = 0; i < total; i++) {
+            if (_voted[i] > 0) {
+                revokeVote(i, _voted[i]);
+            }
+        }
+        _firstLiquidater = msg.sender;
+    }
 
-        if (tempClearObject.revokeVoteBlock == 0) {
-            votingContract.revokeVote(
-                tempClearObject.voteTo,
-                tempClearObject.voted
-            );
-            tempClearObject.firstClearer = msg.sender;
+    function liquidate() public {
+        uint256 total = votingContract.getPoolLength();
+        for (uint256 i = 0; i < total; i++) {
+            if (_voted[i] > 0) {
+                withdraw(i);
+                _voted[i] = 0;
+            }
         }
 
-        if (block.number.sub(tempClearObject.revokeVoteBlock) > 86400) {
-            votingContract.redeem(
-                tempClearObject.voteTo,
-                tempClearObject.voted
-            );
-            tempClearObject.secondClearer = msg.sender;
+        _secondLiquidater = msg.sender;
 
-            loanContract.repayBorrow(
-                payable(tempClearObject.voter),
-                tempClearObject.debt
-            );
+        loanContract.repayBorrow(
+            payable(_owner),
+            loanContract.borrowBalanceCurrent(msg.sender)
+        );
 
-            _HTT.burn(tempClearObject.voted);
+        _HTT.burn(_totalVoted, _owner);
 
-            _voted[tempClearObject.voter][tempClearObject.voteTo] -= tempClearObject.voted;
-            _totalVoted[tempClearObject.voter] -= tempClearObject.voted;
-            _loan[tempClearObject.voter] -= tempClearObject.voted;
+        uint256 bonus = _totalVoted.mul(_bonusRateForLiquidater).div(100).div(
+            2
+        );
+        payable(_firstLiquidater).transfer(bonus);
+        payable(_secondLiquidater).transfer(bonus);
 
-            uint256 bonus = tempClearObject
-            .voted
-            .mul(_bonusRateForClearer)
-            .div(100)
-            .div(2);
-            payable(tempClearObject.firstClearer).transfer(bonus);
-            payable(tempClearObject.secondClearer).transfer(bonus);
-
-            delete _clearObjects[index];
-        }
+        _totalVoted = 0;
+        _loan = 0;
+        isLiquidating = false;
     }
 
     function borrow(uint256 pid, uint256 borrowAmount) public {
         require(borrowAmount > 0);
-        require(
-            borrowAmount <= _voted[msg.sender][pid].mul(_borrowRate).div(100)
-        );
+        require(borrowAmount <= _voted[pid].mul(_borrowRate).div(100));
 
         loanContract.borrow(borrowAmount);
         payable(msg.sender).transfer(borrowAmount);
-        _loan[msg.sender] += borrowAmount;
+        _loan += borrowAmount;
 
-        _setAsClearable(pid);
+        _setAsLiquidateable();
     }
 
-    function emergencyWithdraw(uint256 pid, uint256 borrowAmount) public {
+    function emergencyWithdraw(uint256 borrowAmount) public {
         require(borrowAmount > 0);
-        require(
-            borrowAmount <=
-                _totalVoted[msg.sender].mul(_emergencyBorrowRate).div(100)
-        );
+        require(borrowAmount <= _totalVoted.mul(_emergencyBorrowRate).div(100));
         loanContract.borrow(borrowAmount);
         payable(msg.sender).transfer(borrowAmount);
 
-        _setAsClearable(pid);
+        _setAsLiquidateable();
     }
 
-    function _setAsClearable(uint256 pid) private {
+    function _setAsLiquidateable() private {
         if (
-            _loan[msg.sender] >=
-            _totalVoted[msg.sender].mul(_clearRate).div(100)
+            loanContract.borrowBalanceCurrent(msg.sender) >=
+            _totalVoted.mul(_liquidateRate).div(100)
         ) {
-            _clearObjects.push(
-                ClearObject(
-                    msg.sender,
-                    pid,
-                    _voted[msg.sender][pid],
-                    _loan[msg.sender],
-                    address(0),
-                    address(0),
-                    0
-                )
-            );
+            isLiquidating = true;
         }
     }
 }

@@ -5,13 +5,32 @@ import "./VotingStrategy.sol";
 import "./HTTokenInterface.sol";
 
 interface HecoNodeVoteInterface {
+    function getPoolLength() external returns (uint256);
+
     function vote(uint256 pid) external payable;
 
     function revokeVote(uint256 pid, uint256 amount) external;
 
-    function redeem(uint256 pid, uint256 amount) external;
+    function withdraw(uint256 pid) external returns (uint256);
 
     function claim() external returns (uint256);
+
+    function _isWithdrawable(address _user, uint256 _pid)
+        external
+        returns (bool);
+
+    function getUserVotingSummary(address _user)
+        external
+        returns (
+            address,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256
+        );
 }
 
 contract HecoNodeVote is VotingStrategy {
@@ -20,6 +39,10 @@ contract HecoNodeVote is VotingStrategy {
         HecoNodeVoteInterface(0x80d1769ac6fee59BE5AAC1952a90270bbd2Ceb2F);
 
     mapping(address => uint256) voted;
+
+    function getPoolLength() external override returns (uint256) {
+        return voting.getPoolLength();
+    }
 
     function vote(uint256 pid) external payable override returns (bool) {
         voting.vote{value: msg.value}(pid);
@@ -30,10 +53,16 @@ contract HecoNodeVote is VotingStrategy {
         voting.revokeVote(pid, amount);
     }
 
-    function withdraw() external override {}
+    function isWithdrawable(address user, uint256 pid)
+        external
+        override
+        returns (bool)
+    {
+        return voting._isWithdrawable(user, pid);
+    }
 
-    function redeem(uint256 pid, uint256 amount) external override {
-        voting.redeem(pid, amount);
+    function withdraw(uint256 pid) external override returns (uint256) {
+        return voting.withdraw(pid);
     }
 
     function claim(address payable sender) external override {
