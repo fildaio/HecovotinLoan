@@ -89,6 +89,10 @@ contract Wallet is AccessControl {
     }
 
     function revokeVote(uint256 pid, uint256 amount) public {
+        uint256 tempAmount;
+        (tempAmount, , ) = votingContract.revokingInfo(address(this), pid);
+        require(tempAmount == 0);
+
         require(_voted[pid] >= amount);
         votingContract.revokeVote(pid, amount);
     }
@@ -117,6 +121,10 @@ contract Wallet is AccessControl {
     function redeemAndRePay(uint256 pid) public {
         require(_loan <= _voted[pid].mul(_borrowRate).div(100));
         require(isWithdrawable(pid) == true);
+
+        uint256 lockingEndTime;
+        (, , lockingEndTime) = votingContract.revokingInfo(address(this), pid);
+        require(lockingEndTime < block.timestamp);
 
         uint256 amount = withdraw(pid);
         _HTT.burn(amount, _owner);

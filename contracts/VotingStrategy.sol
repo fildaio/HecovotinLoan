@@ -19,4 +19,12 @@ interface VotingStrategy {
     function userInfo(address userAddress)
         external
         returns (uint256 votedHT, uint256 ownedHTT);
+
+    function revokingInfo(address user, uint256 pid)
+        external
+        returns (
+            uint256,
+            uint8,
+            uint256
+        );
 }

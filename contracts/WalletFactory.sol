@@ -14,7 +14,6 @@ contract WalletFactory is AccessControl {
     }
 
     function makeWallet() public {
-        require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin.");
         require(wallets[msg.sender].isExist() == false);
         wallets[msg.sender] = new Wallet(msg.sender);
     }

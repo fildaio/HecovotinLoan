@@ -31,6 +31,14 @@ interface HecoNodeVoteInterface {
             uint256,
             uint256
         );
+
+    function revokingInfo(address _user, uint256 _pid)
+        external
+        returns (
+            uint256,
+            uint8,
+            uint256
+        );
 }
 
 contract HecoNodeVote is VotingStrategy {
@@ -51,6 +59,18 @@ contract HecoNodeVote is VotingStrategy {
 
     function revokeVote(uint256 pid, uint256 amount) external override {
         voting.revokeVote(pid, amount);
+    }
+
+    function revokingInfo(address user, uint256 pid)
+        external
+        override
+        returns (
+            uint256,
+            uint8,
+            uint256
+        )
+    {
+        return voting.revokingInfo(user, pid);
     }
 
     function isWithdrawable(address user, uint256 pid)
