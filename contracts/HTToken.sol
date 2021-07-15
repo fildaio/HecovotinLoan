@@ -3,14 +3,12 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./HTTokenInterface.sol";
-import "./Wallet.sol";
 
 interface WalletFactoryInterface {
-    function getWallet(address msgSender) external view returns (Wallet);
+    function getOwner(address walletAddress) external view returns (address);
 }
 
 contract HTToken is ERC20, HTTokenInterface {
-    address private _factoryAddress;
     WalletFactoryInterface private _factory;
 
     constructor(uint256 initialSupply) ERC20("HT Token", "HTT") {
@@ -18,18 +16,26 @@ contract HTToken is ERC20, HTTokenInterface {
     }
 
     function setFactory(address factory) public {
-        _factoryAddress = factory;
-        _factory = WalletFactoryInterface(_factoryAddress);
+        _factory = WalletFactoryInterface(factory);
     }
 
-    function mint(uint256 amount, address caller) external override {
-        require(msg.sender == address(_factory.getWallet(caller)));
+    function mint(uint256 amount) external override {
+        require(_factory.getOwner(msg.sender) != address(0));
         _mint(msg.sender, amount);
     }
 
-    function burn(uint256 amount, address caller) external override {
-        require(msg.sender == address(_factory.getWallet(caller)));
+    function burn(uint256 amount) external override {
+        require(_factory.getOwner(msg.sender) != address(0));
         _burn(msg.sender, amount);
+    }
+
+    function transferTo(address recipient, uint256 amount)
+        external
+        override
+        returns (bool)
+    {
+        require(_factory.getOwner(msg.sender) != address(0));
+        return transfer(recipient, amount);
     }
 
     function balance(address userAddress)

@@ -8,6 +8,7 @@ contract WalletFactory is AccessControl {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     mapping(address => Wallet) wallets;
+    mapping(address => address) users;
 
     constructor() {
         _setupRole(ADMIN_ROLE, msg.sender);
@@ -15,10 +16,17 @@ contract WalletFactory is AccessControl {
 
     function makeWallet() public {
         require(wallets[msg.sender].isExist() == false);
-        wallets[msg.sender] = new Wallet(msg.sender);
+        Wallet wallet = new Wallet(msg.sender);
+        address walletAddress = address(wallet);
+        wallets[msg.sender] = wallet;
+        users[walletAddress] = msg.sender;
     }
 
-    function getWallet(address owner) public view returns (Wallet) {
-        return wallets[owner];
+    function getWallet(address owner) public view returns (address) {
+        return address(wallets[owner]);
+    }
+
+    function getOwner(address walletAddress) public view returns (address) {
+        return users[walletAddress];
     }
 }

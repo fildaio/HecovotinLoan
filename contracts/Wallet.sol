@@ -33,7 +33,7 @@ contract Wallet is AccessControl {
     bool public isExist = false;
 
     address private _owner;
-    uint256 private _minVoteAmount = 1e18;
+    uint256 private _minVoteAmount = 1e18;//投票合约需要取整.
     uint256 private _borrowRate = 80;
     uint256 private _emergencyBorrowRate = 98;
     uint256 private _liquidateRate = 90;
@@ -70,6 +70,7 @@ contract Wallet is AccessControl {
     function vote(uint256 pid) public payable {
         uint256 amount = msg.value;
 
+        //取整，退回
         require(amount > _minVoteAmount);
 
         bool done = votingContract.vote{value: amount}(pid);
@@ -77,7 +78,8 @@ contract Wallet is AccessControl {
             _voted[pid] += amount;
             _totalVoted += amount;
 
-            _HTT.mint(amount, _owner);
+            _HTT.mint(amount);
+            //校验。
             loanContract.mint(amount);
 
             emit voteEvent(msg.sender, pid, amount);
@@ -85,7 +87,9 @@ contract Wallet is AccessControl {
     }
 
     function claim() public {
+        // 这个接口似乎不正确。
         votingContract.claim(payable(msg.sender));
+        //转帐给用户。
     }
 
     function revokeVote(uint256 pid, uint256 amount) public {
@@ -103,16 +107,21 @@ contract Wallet is AccessControl {
 
     function withdraw(uint256 pid) public returns (uint256) {
         require(isWithdrawable(pid) == true);
+        //判断可提取的值……提htt从loan.
 
+        // setp 1.
         uint256 tempAmount = votingContract.withdraw(pid);
         _voted[pid] -= tempAmount;
         _totalVoted -= tempAmount;
+
+        // setp 2.
         payable(msg.sender).transfer(tempAmount);
+        // _HTT.burn(amount, caller);
 
         return tempAmount;
     }
 
-    function rePay(uint256 repayAmount) public {
+    function rePay(uint256 repayAmount) public payable {
         address payable caller = payable(msg.sender);
         require(caller.balance >= repayAmount);
         loanContract.repayBorrow(caller, repayAmount);
@@ -126,24 +135,34 @@ contract Wallet is AccessControl {
         (, , lockingEndTime) = votingContract.revokingInfo(address(this), pid);
         require(lockingEndTime < block.timestamp);
 
+        // 需要amount,
         uint256 amount = withdraw(pid);
-        _HTT.burn(amount, _owner);
+        _HTT.burn(amount);
         votingContract.withdraw(pid);
         loanContract.repayBorrow(payable(msg.sender), amount);
+        // 提取htt
+        // htt.burn()
     }
 
+    // 改名revokeALl()
     function beginLiquidate() public {
-        require(isLiquidating == true);
+        //从filda读取借款使用率。and
+        // 判断msg.sender是不是本人。
         uint256 total = votingContract.getPoolLength();
         for (uint256 i = 0; i < total; i++) {
             if (_voted[i] > 0) {
                 revokeVote(i, _voted[i]);
             }
         }
+
+        //从filda读取借款使用率。不超为0。
         _firstLiquidater = msg.sender;
     }
 
     function liquidate() public {
+        //从filda读取借款使用率。
+        // require(isLiquidating == true);
+
         uint256 total = votingContract.getPoolLength();
         for (uint256 i = 0; i < total; i++) {
             if (_voted[i] > 0) {
@@ -159,7 +178,7 @@ contract Wallet is AccessControl {
             loanContract.borrowBalanceCurrent(msg.sender)
         );
 
-        _HTT.burn(_totalVoted, _owner);
+        _HTT.burn(_totalVoted);
 
         uint256 bonus = _totalVoted.mul(_bonusRateForLiquidater).div(100).div(
             2
@@ -174,30 +193,38 @@ contract Wallet is AccessControl {
 
     function borrow(uint256 pid, uint256 borrowAmount) public {
         require(borrowAmount > 0);
+        //从filda读取数据来计算可借的量。
         require(borrowAmount <= _voted[pid].mul(_borrowRate).div(100));
 
         loanContract.borrow(borrowAmount);
         payable(msg.sender).transfer(borrowAmount);
         _loan += borrowAmount;
 
-        _setAsLiquidateable();
+        // _setAsLiquidateable();
     }
 
     function emergencyWithdraw(uint256 borrowAmount) public {
+        // 参数不必要。
         require(borrowAmount > 0);
         require(borrowAmount <= _totalVoted.mul(_emergencyBorrowRate).div(100));
+
+        //根据filda的数据来算。
         loanContract.borrow(borrowAmount);
         payable(msg.sender).transfer(borrowAmount);
 
-        _setAsLiquidateable();
+        //revokeAll()
+        //清算开始。
+
+        // _setAsLiquidateable();
     }
 
-    function _setAsLiquidateable() private {
-        if (
-            loanContract.borrowBalanceCurrent(msg.sender) >=
-            _totalVoted.mul(_liquidateRate).div(100)
-        ) {
-            isLiquidating = true;
-        }
-    }
+
+    // function _setAsLiquidateable() private {
+    //     if (
+    //         loanContract.borrowBalanceCurrent(msg.sender) >=
+    //         _totalVoted.mul(_liquidateRate).div(100)
+    //     ) {
+    //         isLiquidating = true;
+    //     }
+    // }
 }
