@@ -20,7 +20,6 @@ contract Wallet is AccessControl {
 
 	VotingStrategy public votingContract;
 	LoanStrategy public loanContract;
-	bool public isLiquidating = false;
 	bool public isExist = false;
 
 	address private _owner;
@@ -90,6 +89,18 @@ contract Wallet is AccessControl {
 		}
 	}
 
+	function getBorrowLimit() public returns (uint256) {
+		return loanContract.getSavingBalance(address(this)).mul(_borrowRate).div(100);
+	}
+
+	function borrow(uint256 borrowAmount) public {
+		require(borrowAmount > 0);
+		require(borrowAmount <= getBorrowLimit());
+
+		loanContract.borrow(borrowAmount);
+		payable(msg.sender).transfer(borrowAmount);
+	}
+
 	function claim(uint256 pid) public {
 		uint256 pendingReward = votingContract.pendingReward(pid);
 		require(pendingReward > 0, "No rewards to claim.");
@@ -122,26 +133,65 @@ contract Wallet is AccessControl {
 		return votingContract.isWithdrawable(address(this), pid);
 	}
 
-	function withdraw(uint256 pid) public returns (uint256) {
+	function withdrawFromHeco(uint256 pid) public returns (uint256) {
 		require(isWithdrawable(pid) == true);
-		//判断可提取的值……提htt从loan.
 
-		// setp 1.
-		uint256 tempAmount = votingContract.withdraw(pid);
-		_voted[pid] -= tempAmount;
-		_totalVoted -= tempAmount;
-
-		// setp 2.
-		payable(msg.sender).transfer(tempAmount);
-		// _HTT.burn(amount, caller);
-
-		return tempAmount;
+		(uint256 tempAmount, , ) = votingContract.revokingInfo(address(this), pid);
+		bool done = votingContract.withdraw(pid);
+		if (done == true) {
+			_voted[pid] -= tempAmount;
+			_totalVoted -= tempAmount;
+			return tempAmount;
+		} else {
+			revert("Failed to withdraw from Heco voting.");
+		}
 	}
 
-	function rePay(uint256 repayAmount) public payable {
-		address payable caller = payable(msg.sender);
-		require(caller.balance >= repayAmount);
-		loanContract.repayBorrow(caller, repayAmount);
+	function rePay() public payable {
+		uint256 repayAmount = msg.value;
+		require(repayAmount > 0);
+		require(repayAmount <= loanContract.borrowBalanceCurrent(address(this)));
+		require(msg.sender.balance >= repayAmount);
+
+		bool done = loanContract.repayBehalf{ value: msg.value }(address(this));
+		if (done == false) {
+			revert("Failed to repay.");
+		}
+	}
+
+	function withdrawFromFilda() public returns (uint256) {
+		uint256 savingBalance = loanContract.getSavingBalance(address(this));
+		if (savingBalance > 0) {
+			uint256 result = loanContract.redeemUnderlying(savingBalance);
+			if (result > 0) {
+				return result;
+			} else {
+				revert("Failed to withdraw from Filda");
+			}
+		} else {
+			revert("No deposited HTT.");
+		}
+	}
+
+	function withdraw() public {
+		uint256 withdrawal = withdrawFromFilda();
+		_HTT.burn(withdrawal);
+
+		// uint256 loanBalance = loanContract.borrowBalanceCurrent(address(this));
+		// if (loanBalance > 0) {
+		// 	uint256 result = loanContract.repayBorrow(address(this), loanBalance);
+		// 	if()
+		// } else {
+		// 	revert("No loans.");
+		// }
+		// // setp 1.
+		// uint256 tempAmount = votingContract.withdraw(pid);
+		// _voted[pid] -= tempAmount;
+		// _totalVoted -= tempAmount;
+		// // setp 2.
+		// payable(msg.sender).transfer(tempAmount);
+		// // _HTT.burn(amount, caller);
+		// return tempAmount;
 	}
 
 	function redeemAndRePay(uint256 pid) public {
@@ -153,10 +203,12 @@ contract Wallet is AccessControl {
 		require(lockingEndTime < block.timestamp);
 
 		// 需要amount,
-		uint256 amount = withdraw(pid);
+		uint256 amount = withdrawFromHeco(pid);
 		_HTT.burn(amount);
 		votingContract.withdraw(pid);
-		loanContract.repayBorrow(payable(msg.sender), amount);
+		// loanContract.repayBorrow(payable(msg.sender), amount);
+		// 下面的调用似乎的错的。
+		loanContract.repayBehalf(msg.sender);
 		// 提取htt
 		// htt.burn()
 	}
@@ -183,14 +235,16 @@ contract Wallet is AccessControl {
 		uint256 total = votingContract.getPoolLength();
 		for (uint256 i = 0; i < total; i++) {
 			if (_voted[i] > 0) {
-				withdraw(i);
+				withdrawFromHeco(i);
 				_voted[i] = 0;
 			}
 		}
 
 		_secondLiquidater = msg.sender;
 
-		loanContract.repayBorrow(payable(_owner), loanContract.borrowBalanceCurrent(msg.sender));
+		// loanContract.repayBorrow(payable(_owner), loanContract.borrowBalanceCurrent(msg.sender));
+		// 下面的调用似乎是错的。
+		loanContract.repayBehalf(_owner);
 
 		_HTT.burn(_totalVoted);
 
@@ -200,19 +254,6 @@ contract Wallet is AccessControl {
 
 		_totalVoted = 0;
 		_loan = 0;
-		isLiquidating = false;
-	}
-
-	function borrow(uint256 pid, uint256 borrowAmount) public {
-		require(borrowAmount > 0);
-		//从filda读取数据来计算可借的量。
-		require(borrowAmount <= _voted[pid].mul(_borrowRate).div(100));
-
-		loanContract.borrow(borrowAmount);
-		payable(msg.sender).transfer(borrowAmount);
-		_loan += borrowAmount;
-
-		// _setAsLiquidateable();
 	}
 
 	function emergencyWithdraw(uint256 borrowAmount) public {
@@ -226,16 +267,5 @@ contract Wallet is AccessControl {
 
 		//revokeAll()
 		//清算开始。
-
-		// _setAsLiquidateable();
 	}
-
-	// function _setAsLiquidateable() private {
-	//     if (
-	//         loanContract.borrowBalanceCurrent(msg.sender) >=
-	//         _totalVoted.mul(_liquidateRate).div(100)
-	//     ) {
-	//         isLiquidating = true;
-	//     }
-	// }
 }

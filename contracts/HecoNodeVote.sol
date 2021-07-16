@@ -79,8 +79,12 @@ contract HecoNodeVote is VotingStrategy {
 		return voting._isWithdrawable(user, pid);
 	}
 
-	function withdraw(uint256 pid) external override returns (uint256) {
-		return voting.withdraw(pid);
+	function withdraw(uint256 pid) external override returns (bool) {
+		try voting.withdraw(pid) {
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	function pendingReward(uint256 pid) external override returns (uint256) {

@@ -10,7 +10,7 @@ interface VotingStrategy {
 
 	function isWithdrawable(address user, uint256 pid) external returns (bool);
 
-	function withdraw(uint256 pid) external returns (uint256);
+	function withdraw(uint256 pid) external returns (bool);
 
 	function pendingReward(uint256 pid) external returns (uint256);
 
