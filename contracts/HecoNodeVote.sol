@@ -3,8 +3,9 @@ pragma solidity >=0.4.22 <0.9.0;
 
 import "./VotingStrategy.sol";
 import "./HTTokenInterface.sol";
+import "./Global.sol";
 
-interface HecoNodeVoteInterface {
+interface HecoNodeVoteInterface is Global {
 	function getPoolLength() external returns (uint256);
 
 	function vote(uint256 pid) external payable;
@@ -19,18 +20,7 @@ interface HecoNodeVoteInterface {
 
 	function _isWithdrawable(address _user, uint256 _pid) external returns (bool);
 
-	function getUserVotingSummary(address _user)
-		external
-		returns (
-			address,
-			uint256,
-			uint256,
-			uint256,
-			uint256,
-			uint256,
-			uint256,
-			uint256
-		);
+	function getUserVotingSummary(address _user) external returns (VotingData[] memory);
 
 	function revokingInfo(address _user, uint256 _pid)
 		external
@@ -59,8 +49,12 @@ contract HecoNodeVote is VotingStrategy {
 		}
 	}
 
-	function revokeVote(uint256 pid, uint256 amount) external override {
-		voting.revokeVote(pid, amount);
+	function revokeVote(uint256 pid, uint256 amount) external override returns (bool) {
+		try voting.revokeVote(pid, amount) {
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	function revokingInfo(address user, uint256 pid)
@@ -104,5 +98,9 @@ contract HecoNodeVote is VotingStrategy {
 	function userInfo(address userAddress) external view override returns (uint256 votedHT, uint256 ownedHTT) {
 		votedHT = voted[userAddress];
 		ownedHTT = HTT.balance(userAddress);
+	}
+
+	function getUserVotingSummary(address user) external override returns (VotingData[] memory) {
+		return voting.getUserVotingSummary(user);
 	}
 }

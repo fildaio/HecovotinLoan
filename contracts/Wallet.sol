@@ -6,8 +6,9 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./VotingStrategy.sol";
 import "./LoanStrategy.sol";
 import "./HTTokenInterface.sol";
+import "./Global.sol";
 
-contract Wallet is AccessControl {
+contract Wallet is AccessControl, Global {
 	using SafeMath for uint256;
 
 	struct RedeemingState {
@@ -39,6 +40,13 @@ contract Wallet is AccessControl {
 
 	// Events
 	event voteEvent(address voter, uint256 pid, uint256 amount);
+
+	modifier isLiquidating(bool isOrNot) {
+		if (isOrNot == false) {
+			require(msg.sender == _owner);
+		}
+		_;
+	}
 
 	constructor(address owner) {
 		_setupRole(ADMIN_ROLE, msg.sender);
@@ -120,13 +128,33 @@ contract Wallet is AccessControl {
 		}
 	}
 
-	function revokeVote(uint256 pid, uint256 amount) public {
+	function revokeVote(uint256 pid, uint256 amount) public returns (uint256) {
 		uint256 tempAmount;
 		(tempAmount, , ) = votingContract.revokingInfo(address(this), pid);
 		require(tempAmount == 0);
-
 		require(_voted[pid] >= amount);
-		votingContract.revokeVote(pid, amount);
+
+		bool done = votingContract.revokeVote(pid, amount);
+		if (done == true) {
+			return tempAmount;
+		} else {
+			revert("Failed to call revokeVote().");
+		}
+	}
+
+	function revokeAll(bool forLiquidation) public isLiquidating(forLiquidation) {
+		VotingData[] memory votingDatas = votingContract.getUserVotingSummary(address(this));
+		if (votingDatas.length > 0) {
+			for (uint256 i = 0; i < votingDatas.length; i++) {
+				VotingData memory votedData = votingDatas[i];
+				uint256 result = revokeVote(votedData.pid, votedData.ballot);
+				if (result == 0) {
+					return revert("Failed to revoke one of votings");
+				}
+			}
+		} else {
+			revert("No voting data.");
+		}
 	}
 
 	function isWithdrawable(uint256 pid) public returns (bool) {
@@ -213,24 +241,13 @@ contract Wallet is AccessControl {
 		// htt.burn()
 	}
 
-	// 改名revokeALl()
-	function beginLiquidate() public {
-		//从filda读取借款使用率。and
-		// 判断msg.sender是不是本人。
-		uint256 total = votingContract.getPoolLength();
-		for (uint256 i = 0; i < total; i++) {
-			if (_voted[i] > 0) {
-				revokeVote(i, _voted[i]);
-			}
-		}
-
-		//从filda读取借款使用率。不超为0。
-		_firstLiquidater = msg.sender;
-	}
-
 	function liquidate() public {
 		//从filda读取借款使用率。
-		// require(isLiquidating == true);
+		//从filda读取借款使用率。and
+		// 判断msg.sender是不是本人。
+		revokeAll(true);
+		//从filda读取借款使用率。不超为0。
+		_firstLiquidater = msg.sender;
 
 		uint256 total = votingContract.getPoolLength();
 		for (uint256 i = 0; i < total; i++) {

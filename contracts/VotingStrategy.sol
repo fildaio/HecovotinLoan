@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.4.22 <0.9.0;
 
-interface VotingStrategy {
+import "./Global.sol";
+
+interface VotingStrategy is Global {
 	function getPoolLength() external returns (uint256);
 
 	function vote(uint256 pid) external payable returns (bool);
 
-	function revokeVote(uint256 pid, uint256 amount) external;
+	function revokeVote(uint256 pid, uint256 amount) external returns (bool);
 
 	function isWithdrawable(address user, uint256 pid) external returns (bool);
 
@@ -27,4 +29,6 @@ interface VotingStrategy {
 			uint8,
 			uint256
 		);
+
+	function getUserVotingSummary(address user) external returns (VotingData[] memory);
 }
