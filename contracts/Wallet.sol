@@ -25,15 +25,13 @@ contract Wallet is AccessControl, Global {
 
 	address private _owner;
 	uint256 private _minVoteAmount = 1e18;
+	uint256 private _denominator = 100;
 	uint256 private _borrowRate = 80;
-	uint256 private _emergencyBorrowRate = 98;
+	uint256 private _borrowQuicklyRate = 98;
 	uint256 private _liquidateRate = 90;
 	uint256 private _bonusRateForLiquidater = 3;
 	address private _firstLiquidater;
 	address private _secondLiquidater;
-	uint256 private _loan;
-	uint256 private _totalVoted;
-	mapping(uint256 => uint256) private _voted;
 	address payable private _deployedVoteContract = payable(address(0x123));
 	address payable private _deployedLoanContract = payable(address(0x123));
 	HTTokenInterface private _HTT = HTTokenInterface(address(0x123));
@@ -66,7 +64,7 @@ contract Wallet is AccessControl, Global {
 
 	function vote(uint256 pid) public payable {
 		uint256 amount = msg.value;
-		require(amount > _minVoteAmount);
+		require(amount >= _minVoteAmount);
 
 		address payable caller = payable(msg.sender);
 
@@ -79,10 +77,6 @@ contract Wallet is AccessControl, Global {
 		bool done = votingContract.vote{ value: integerAmount }(pid);
 		if (done == true) {
 			uint256 oldBalance = _HTT.balance(address(this));
-
-			_voted[pid] += integerAmount;
-			_totalVoted += integerAmount;
-
 			_HTT.mint(integerAmount);
 			uint256 newBalance = _HTT.balance(address(this));
 
@@ -98,12 +92,16 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function getBorrowLimit() public returns (uint256) {
-		return loanContract.getSavingBalance(address(this)).mul(_borrowRate).div(100);
+		return loanContract.getSavingBalance(address(this)).mul(_borrowRate).div(_denominator);
+	}
+
+	function getLiquidateLimit() public returns (uint256) {
+		return loanContract.getSavingBalance(address(this)).mul(_liquidateRate).div(_denominator);
 	}
 
 	function borrow(uint256 borrowAmount) public {
 		require(borrowAmount > 0);
-		require(borrowAmount <= getBorrowLimit());
+		require(borrowAmount <= getBorrowLimit() || borrowAmount <= getLiquidateLimit());
 
 		loanContract.borrow(borrowAmount);
 		payable(msg.sender).transfer(borrowAmount);
@@ -128,32 +126,44 @@ contract Wallet is AccessControl, Global {
 		}
 	}
 
-	function revokeVote(uint256 pid, uint256 amount) public returns (uint256) {
+	function revokeVote(uint256 pid, uint256 amount) public returns (bool success) {
 		uint256 tempAmount;
 		(tempAmount, , ) = votingContract.revokingInfo(address(this), pid);
-		require(tempAmount == 0);
-		require(_voted[pid] >= amount);
-
-		bool done = votingContract.revokeVote(pid, amount);
-		if (done == true) {
-			return tempAmount;
+		if (tempAmount == 0) {
+			bool done = votingContract.revokeVote(pid, amount);
+			if (done == true) {
+				success = true;
+			} else {
+				revert("Failed to call revokeVote().");
+			}
 		} else {
-			revert("Failed to call revokeVote().");
+			success = true;
 		}
 	}
 
-	function revokeAll(bool forLiquidation) public isLiquidating(forLiquidation) {
+	function revokingDone(uint256 pid) public returns (bool) {
+		uint256 lockingEndTime;
+		(, , lockingEndTime) = votingContract.revokingInfo(address(this), pid);
+		bool withdrawable = isWithdrawable(pid);
+		if (lockingEndTime < block.timestamp && withdrawable == true) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	function isRevokingAllDone() public returns (bool allDone) {
 		VotingData[] memory votingDatas = votingContract.getUserVotingSummary(address(this));
 		if (votingDatas.length > 0) {
 			for (uint256 i = 0; i < votingDatas.length; i++) {
 				VotingData memory votedData = votingDatas[i];
-				uint256 result = revokeVote(votedData.pid, votedData.ballot);
-				if (result == 0) {
-					return revert("Failed to revoke one of votings");
+				bool done = revokingDone(votedData.pid);
+				if (done == false) {
+					allDone = false;
 				}
+
+				allDone = true;
 			}
-		} else {
-			revert("No voting data.");
 		}
 	}
 
@@ -167,23 +177,9 @@ contract Wallet is AccessControl, Global {
 		(uint256 tempAmount, , ) = votingContract.revokingInfo(address(this), pid);
 		bool done = votingContract.withdraw(pid);
 		if (done == true) {
-			_voted[pid] -= tempAmount;
-			_totalVoted -= tempAmount;
 			return tempAmount;
 		} else {
 			revert("Failed to withdraw from Heco voting.");
-		}
-	}
-
-	function rePay() public payable {
-		uint256 repayAmount = msg.value;
-		require(repayAmount > 0);
-		require(repayAmount <= loanContract.borrowBalanceCurrent(address(this)));
-		require(msg.sender.balance >= repayAmount);
-
-		bool done = loanContract.repayBehalf{ value: msg.value }(address(this));
-		if (done == false) {
-			revert("Failed to repay.");
 		}
 	}
 
@@ -201,88 +197,89 @@ contract Wallet is AccessControl, Global {
 		}
 	}
 
-	function withdraw() public {
-		uint256 withdrawal = withdrawFromFilda();
-		_HTT.burn(withdrawal);
+	function repay() public payable {
+		uint256 repayAmount = msg.value;
+		require(repayAmount > 0);
+		require(repayAmount <= loanContract.borrowBalanceCurrent(address(this)));
+		require(msg.sender.balance >= repayAmount);
 
-		// uint256 loanBalance = loanContract.borrowBalanceCurrent(address(this));
-		// if (loanBalance > 0) {
-		// 	uint256 result = loanContract.repayBorrow(address(this), loanBalance);
-		// 	if()
-		// } else {
-		// 	revert("No loans.");
-		// }
-		// // setp 1.
-		// uint256 tempAmount = votingContract.withdraw(pid);
-		// _voted[pid] -= tempAmount;
-		// _totalVoted -= tempAmount;
-		// // setp 2.
-		// payable(msg.sender).transfer(tempAmount);
-		// // _HTT.burn(amount, caller);
-		// return tempAmount;
+		bool done = loanContract.repayBehalf{ value: msg.value }(address(this));
+		if (done == false) {
+			revert("Failed to repay.");
+		}
 	}
 
-	function redeemAndRePay(uint256 pid) public {
-		require(_loan <= _voted[pid].mul(_borrowRate).div(100));
-		require(isWithdrawable(pid) == true);
+	function revokeVotingAndRepay() public {
+		require(isRevokingAllDone() == true, "Revoking vote is in progress...");
+		uint256 amount = _withdrawAllFromHeco(false);
 
-		uint256 lockingEndTime;
-		(, , lockingEndTime) = votingContract.revokingInfo(address(this), pid);
-		require(lockingEndTime < block.timestamp);
-
-		// 需要amount,
-		uint256 amount = withdrawFromHeco(pid);
+		require(address(this).balance >= amount);
+		loanContract.repayBehalf{ value: amount }(address(this));
 		_HTT.burn(amount);
-		votingContract.withdraw(pid);
-		// loanContract.repayBorrow(payable(msg.sender), amount);
-		// 下面的调用似乎的错的。
-		loanContract.repayBehalf(msg.sender);
-		// 提取htt
-		// htt.burn()
 	}
 
-	function liquidate() public {
-		//从filda读取借款使用率。
-		//从filda读取借款使用率。and
-		// 判断msg.sender是不是本人。
-		revokeAll(true);
-		//从filda读取借款使用率。不超为0。
-		_firstLiquidater = msg.sender;
+	function withdraw() public {
+		require(isRevokingAllDone() == true, "Revoking vote is in progress...");
+		uint256 amountHT = _withdrawAllFromHeco(false);
+		uint256 amountHTT = withdrawFromFilda();
+		_HTT.burn(amountHTT);
+		payable(msg.sender).transfer(amountHT);
+	}
 
-		uint256 total = votingContract.getPoolLength();
-		for (uint256 i = 0; i < total; i++) {
-			if (_voted[i] > 0) {
-				withdrawFromHeco(i);
-				_voted[i] = 0;
+	function liquidate() public payable {
+		uint256 borrowBalanceCurrent = loanContract.borrowBalanceCurrent(address(this));
+		uint256 savingBalance = loanContract.getSavingBalance(address(this));
+		uint256 borrowed = borrowBalanceCurrent.mul(_denominator).div(savingBalance);
+		require(borrowed > _borrowRate || borrowed > _liquidateRate);
+		require(msg.sender != _owner);
+
+		if (isRevokingAllDone() == false) {
+			// Step 1: revoke all votes.
+			_revokeAll(true);
+			_firstLiquidater = msg.sender;
+		} else {
+			// Step 2: withdraw all.
+			require(msg.value >= borrowBalanceCurrent);
+
+			uint256 total = _withdrawAllFromHeco(true);
+			loanContract.repayBehalf{ value: msg.value }(address(this));
+			_secondLiquidater = msg.sender;
+			_HTT.burn(savingBalance);
+
+			uint256 bonus = total.mul(_bonusRateForLiquidater).div(_denominator).div(2);
+			payable(_firstLiquidater).transfer(bonus);
+			payable(_secondLiquidater).transfer(bonus);
+		}
+	}
+
+	function withdrawQuickly() public {
+		uint256 savingBalance = loanContract.getSavingBalance(address(this));
+		uint256 borrowAmount = savingBalance.mul(_borrowQuicklyRate).div(_denominator);
+		borrow(borrowAmount);
+	}
+
+	function _revokeAll(bool forLiquidation) private isLiquidating(forLiquidation) returns (bool allDone) {
+		VotingData[] memory votingDatas = votingContract.getUserVotingSummary(address(this));
+		if (votingDatas.length > 0) {
+			for (uint256 i = 0; i < votingDatas.length; i++) {
+				VotingData memory votedData = votingDatas[i];
+				bool success = revokeVote(votedData.pid, votedData.ballot);
+				if (success == false) {
+					revert("Failed to revoke one of votings");
+				}
+				allDone = true;
 			}
 		}
-
-		_secondLiquidater = msg.sender;
-
-		// loanContract.repayBorrow(payable(_owner), loanContract.borrowBalanceCurrent(msg.sender));
-		// 下面的调用似乎是错的。
-		loanContract.repayBehalf(_owner);
-
-		_HTT.burn(_totalVoted);
-
-		uint256 bonus = _totalVoted.mul(_bonusRateForLiquidater).div(100).div(2);
-		payable(_firstLiquidater).transfer(bonus);
-		payable(_secondLiquidater).transfer(bonus);
-
-		_totalVoted = 0;
-		_loan = 0;
 	}
 
-	function emergencyWithdraw(uint256 borrowAmount) public {
-		// 参数不必要。
-		require(borrowAmount > 0);
-		require(borrowAmount <= _totalVoted.mul(_emergencyBorrowRate).div(100));
-
-		//根据filda的数据来算。
-		loanContract.borrow(borrowAmount);
-		payable(msg.sender).transfer(borrowAmount);
-
-		//revokeAll()
-		//清算开始。
+	function _withdrawAllFromHeco(bool forLiquidation) private isLiquidating(forLiquidation) returns (uint256 totalAmount) {
+		VotingData[] memory votingDatas = votingContract.getUserVotingSummary(address(this));
+		if (votingDatas.length > 0) {
+			for (uint256 i = 0; i < votingDatas.length; i++) {
+				VotingData memory votedData = votingDatas[i];
+				withdrawFromHeco(votedData.pid);
+				totalAmount += votedData.ballot;
+			}
+		}
 	}
 }
