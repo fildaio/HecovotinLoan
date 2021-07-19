@@ -2,9 +2,9 @@
 pragma solidity >=0.4.22 <0.9.0;
 
 interface LoanStrategy {
-	function borrow(uint256 borrowAmount) external payable;
+	function borrow(uint256 borrowAmount) external payable returns (uint256);
 
-	function mint(uint256 mintAmount) external;
+	function mint(uint256 mintAmount) external returns (uint256);
 
 	function redeemUnderlying(uint256 redeemAmount) external returns (uint256);
 

@@ -54,12 +54,12 @@ contract LoanViaFilda is LoanStrategy {
 	CTokenInterface public qToken = CTokenInterface(0x824151251B38056d54A15E56B73c54ba44811aF8);
 	MaximillionInterface public maximillion = MaximillionInterface(0x32fbB9c822ABd1fD9e4655bfA55A45285Fb8992d);
 
-	function borrow(uint256 borrowAmount) external payable override {
-		filda.borrow(borrowAmount);
+	function borrow(uint256 borrowAmount) external payable override returns (uint256) {
+		return filda.borrow(borrowAmount);
 	}
 
-	function mint(uint256 mintAmount) external override {
-		filda.mint(mintAmount);
+	function mint(uint256 mintAmount) external override returns (uint256) {
+		return filda.mint(mintAmount);
 	}
 
 	function redeemUnderlying(uint256 redeemAmount) external override returns (uint256) {

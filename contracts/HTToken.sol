@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./HTTokenInterface.sol";
 
@@ -9,6 +10,8 @@ interface WalletFactoryInterface {
 }
 
 contract HTToken is ERC20, HTTokenInterface {
+	using SafeMath for uint256;
+
 	WalletFactoryInterface private _factory;
 
 	modifier isWalletContract() {
@@ -24,29 +27,33 @@ contract HTToken is ERC20, HTTokenInterface {
 		_factory = WalletFactoryInterface(factory);
 	}
 
-	function mint(uint256 amount) external override isWalletContract() {
+	function mint(uint256 amount) external override isWalletContract() returns (bool) {
+		uint256 oldBalance = balanceOf(msg.sender);
 		_mint(msg.sender, amount);
+		uint256 newBalance = balanceOf(msg.sender);
+		if (newBalance.sub(oldBalance) >= amount) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 
-	function burn(uint256 amount) external override isWalletContract() {
+	function burn(uint256 amount) external override isWalletContract() returns (bool) {
+		uint256 oldBalance = balanceOf(msg.sender);
 		_burn(msg.sender, amount);
+		uint256 newBalance = balanceOf(msg.sender);
+		if (oldBalance.sub(newBalance) >= amount) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 
-	function transferTo(address recipient, uint256 amount)
-		external
-		override
-		isWalletContract()
-		returns (bool)
-	{
+	function transferTo(address recipient, uint256 amount) external override isWalletContract() returns (bool) {
 		return transfer(recipient, amount);
 	}
 
-	function balance(address userAddress)
-		external
-		view
-		override
-		returns (uint256)
-	{
+	function balance(address userAddress) external view override returns (uint256) {
 		return balanceOf(userAddress);
 	}
 }
