@@ -23,7 +23,6 @@ contract Wallet is AccessControl, Global {
 
 	VotingStrategy public votingContract;
 	LoanStrategy public loanContract;
-	bool public isExist = false;
 
 	address private _owner;
 	uint256 private _decimals = 1e18;
@@ -42,20 +41,18 @@ contract Wallet is AccessControl, Global {
 	HTTokenInterface private _HTT = HTTokenInterface(address(0x123));
 
 	// Events
-	event voteEvent(address voter, uint256 pid, uint256 amount);
-	event burnHTTEvent(address voter, uint256 amount);
-	event claimEvent(address caller, uint256 pid, uint256 amount);
-	event withdrawEvent(address voter, uint256 pid, uint256 amount);
-	event quickWithdrawalEvent(address voter, uint256 amount);
-	event revokeEvent(address voter, uint256 pid, uint256 amount);
-	event liquidateEvent(address voter, uint256 amount);
-	event repayEvent(address voter, uint256 pid, uint256 amount);
+	event VoteEvent(address voter, uint256 pid, uint256 amount);
+	event BurnHTTEvent(address voter, uint256 amount);
+	event ClaimEvent(address caller, uint256 pid, uint256 amount);
+	event WithdrawEvent(address voter, uint256 pid, uint256 amount);
+	event QuickWithdrawEvent(address voter, uint256 amount);
+	event RevokeEvent(address voter, uint256 pid, uint256 amount);
+	event LiquidateEvent(address voter, uint256 amount);
+	event RepayEvent(address voter, uint256 pid, uint256 amount);
 
 	constructor(address owner, address admin) {
 		_setupRole(ADMIN_ROLE, msg.sender);
 		_setupRole(CONFIG_ROLE, msg.sender);
-
-		isExist = true;
 
 		_owner = owner;
 		_admin = admin;
@@ -96,7 +93,7 @@ contract Wallet is AccessControl, Global {
 
 		require(mintResult.mul(_exchangeRateStored()).div(_decimals) == integerAmount);
 
-		emit voteEvent(caller, pid, integerAmount);
+		emit VoteEvent(caller, pid, integerAmount);
 	}
 
 	function getBorrowLimit() public returns (uint256) {
@@ -128,15 +125,15 @@ contract Wallet is AccessControl, Global {
 		if (rewardToClaim > 0) {
 			payable(msg.sender).transfer(rewardToClaim);
 
-			emit claimEvent(msg.sender, pid, rewardToClaim);
+			emit ClaimEvent(msg.sender, pid, rewardToClaim);
 		} else {
-			revert(); //"Insufficient reward amount."
+			Qevert(); //"Insufficient reward amount."
 		}
 	}
 
 	function revokeVote(uint256 pid, uint256 amount) public returns (bool success) {
 		require(votingContract.revokeVote(pid, amount));
-		emit revokeEvent(msg.sender, pid, amount);
+		emit RevokeEvent(msg.sender, pid, amount);
 		return true;
 	}
 
@@ -159,21 +156,21 @@ contract Wallet is AccessControl, Global {
 		require(msg.sender == _owner);
 		withdrawal = _withdrawOrRepay(pid, false);
 		payable(msg.sender).transfer(address(this).balance);
-		emit withdrawEvent(msg.sender, pid, withdrawal);
+		emit WithdrawEvent(msg.sender, pid, withdrawal);
 	}
 
 	function withdrawAndRepay(uint256 pid) public returns (uint256 withdrawal) {
 		require(msg.sender == _owner);
 		withdrawal = _withdrawOrRepay(pid, true);
 		payable(msg.sender).transfer(address(this).balance);
-		emit withdrawEvent(msg.sender, pid, withdrawal);
+		emit WithdrawEvent(msg.sender, pid, withdrawal);
 	}
 
 	function withdrawAndRepayAll() public {
 		require(msg.sender == _owner);
 		uint256 withdrawal = _withdrawAllVoting(true);
 		payable(msg.sender).transfer(address(this).balance);
-		emit withdrawEvent(msg.sender, 99999, withdrawal);
+		emit WithdrawEvent(msg.sender, 99999, withdrawal);
 	}
 
 	function repay() public payable {
@@ -219,7 +216,7 @@ contract Wallet is AccessControl, Global {
 
 			payable(_admin).transfer(address(this).balance);
 
-			emit liquidateEvent(address(this), total);
+			emit LiquidateEvent(address(this), total);
 		}
 	}
 
@@ -228,7 +225,7 @@ contract Wallet is AccessControl, Global {
 		uint256 borrowAmount = savingBalance.mul(_borrowQuicklyRate).div(_denominator).sub(loanContract.borrowBalanceCurrent(address(this)));
 		borrow(borrowAmount);
 		liquidate();
-		emit quickWithdrawalEvent(msg.sender, borrowAmount);
+		emit QuickWithdrawEvent(msg.sender, borrowAmount);
 	}
 
 	// 检查已发起的撤回投票是否完成。
@@ -265,7 +262,7 @@ contract Wallet is AccessControl, Global {
 
 			require(loanContract.repayBehalf{ value: repayAmount }(address(this)));
 
-			emit repayEvent(msg.sender, pid, repayAmount);
+			emit RepayEvent(msg.sender, pid, repayAmount);
 		}
 
 		result = loanContract.redeemUnderlying(withdrawal);
@@ -274,7 +271,7 @@ contract Wallet is AccessControl, Global {
 
 		_HTT.burn(result);
 
-		emit withdrawEvent(msg.sender, pid, address(this).balance);
+		emit BurnHTTEvent(msg.sender, pid, result);
 	}
 
 	// 撤回全部投票的全部量，只供清算时内部调用。

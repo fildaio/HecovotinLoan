@@ -7,26 +7,32 @@ import "./Wallet.sol";
 contract WalletFactory is AccessControl {
 	bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
-	mapping(address => Wallet) wallets;
-	mapping(address => address) users;
+	mapping(address => address) private _wallets;
+	mapping(address => address) private _users;
+
+	event MakeWalletEvent(address user, address walletAddress);
 
 	constructor() {
 		_setupRole(ADMIN_ROLE, msg.sender);
 	}
 
 	function makeWallet() public {
-		require(wallets[msg.sender].isExist() == false);
-		Wallet wallet = new Wallet(msg.sender, msg.sender);
-		address walletAddress = address(wallet);
-		wallets[msg.sender] = wallet;
-		users[walletAddress] = msg.sender;
+		require(_wallets[msg.sender] == address(0));
+
+		address walletAddress = address(new Wallet(msg.sender, msg.sender));
+		if (walletAddress != address(0)) {
+			_wallets[msg.sender] = walletAddress;
+			_users[walletAddress] = msg.sender;
+
+			emit MakeWalletEvent(msg.sender, walletAddress);
+		}
 	}
 
 	function getWallet(address owner) public view returns (address) {
-		return address(wallets[owner]);
+		return _wallets[owner];
 	}
 
 	function getOwner(address walletAddress) public view returns (address) {
-		return users[walletAddress];
+		return _users[walletAddress];
 	}
 }
