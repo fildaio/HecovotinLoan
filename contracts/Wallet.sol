@@ -21,9 +21,6 @@ contract Wallet is AccessControl, Global {
 	bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 	bytes32 public constant CONFIG_ROLE = keccak256("CONFIG_ROLE");
 
-	VotingStrategy public votingContract;
-	LoanStrategy public loanContract;
-
 	address private _owner;
 	uint256 private _decimals = 1e18;
 	uint256 private _minVoteAmount = 1e18;
@@ -31,16 +28,15 @@ contract Wallet is AccessControl, Global {
 	uint256 private _borrowRate = 8000;
 	uint256 private _borrowQuicklyRate = 9700;
 	uint256 private _liquidateRate = 9000;
-	uint256 private _bonusRateForLiquidater = 3;
+	uint256 private _bonusRateForLiquidater = 300;
 	address private _firstLiquidater;
 	address private _secondLiquidater;
-	address private _admin = address(0x123);
+	address private _admin;
 	uint256 private _exchangeRate = 1e18;
-	address payable private _deployedVoteContract = payable(address(0x123));
-	address payable private _deployedLoanContract = payable(address(0x123));
-	HTTokenInterface private _HTT = HTTokenInterface(address(0x123));
+	HTTokenInterface private _HTT;
+	VotingStrategy private _votingContract;
+	LoanStrategy private _loanContract;
 
-	// Events
 	event VoteEvent(address voter, uint256 pid, uint256 amount);
 	event BurnHTTEvent(address voter, uint256 amount);
 	event ClaimEvent(address caller, uint256 pid, uint256 amount);
@@ -50,19 +46,38 @@ contract Wallet is AccessControl, Global {
 	event LiquidateEvent(address voter, uint256 amount);
 	event RepayEvent(address voter, uint256 pid, uint256 amount);
 
+	modifier byAdmin() {
+		require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin.");
+		_;
+	}
+
+	modifier byConfigRole() {
+		require(hasRole(CONFIG_ROLE, msg.sender) || hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin or the configuration roles..");
+		_;
+	}
+
 	constructor(address owner, address admin) {
 		_setupRole(ADMIN_ROLE, msg.sender);
 		_setupRole(CONFIG_ROLE, msg.sender);
 
 		_owner = owner;
 		_admin = admin;
-		votingContract = VotingStrategy(_deployedVoteContract);
-		loanContract = LoanStrategy(_deployedLoanContract);
 	}
 
-	function setConfigRole(address configRoleAddress) public {
-		require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin.");
+	function setConfigRole(address configRoleAddress) public byAdmin() {
 		_setupRole(CONFIG_ROLE, configRoleAddress);
+	}
+
+	function setHTToken(address contractAddress) public byConfigRole() {
+		_HTT = HTTokenInterface(contractAddress);
+	}
+
+	function setVotingContract(address contractAddress) public byConfigRole() {
+		_votingContract = VotingStrategy(contractAddress);
+	}
+
+	function setLoanContract(address contractAddress) public byConfigRole() {
+		_loanContract = LoanStrategy(contractAddress);
 	}
 
 	function vote(uint256 pid) public payable {
@@ -77,7 +92,7 @@ contract Wallet is AccessControl, Global {
 			caller.transfer(difference);
 		}
 
-		require(votingContract.vote{ value: integerAmount }(pid));
+		require(_votingContract.vote{ value: integerAmount }(pid));
 
 		uint256 oldBalance = _HTT.balance(address(this));
 		bool mintHTTResult = _HTT.mint(integerAmount);
@@ -89,7 +104,7 @@ contract Wallet is AccessControl, Global {
 
 		require(newBalance.sub(oldBalance) == integerAmount);
 
-		uint256 mintResult = loanContract.mint(integerAmount);
+		uint256 mintResult = _loanContract.mint(integerAmount);
 
 		require(mintResult.mul(_exchangeRateStored()).div(_decimals) == integerAmount);
 
@@ -97,17 +112,17 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function getBorrowLimit() public returns (uint256) {
-		return loanContract.getSavingBalance(address(this)).mul(_borrowRate).div(_denominator);
+		return _loanContract.getSavingBalance(address(this)).mul(_borrowRate).div(_denominator);
 	}
 
 	function getLiquidateLimit() public returns (uint256) {
-		return loanContract.getSavingBalance(address(this)).mul(_liquidateRate).div(_denominator);
+		return _loanContract.getSavingBalance(address(this)).mul(_liquidateRate).div(_denominator);
 	}
 
 	function borrow(uint256 borrowAmount) public {
-		require(borrowAmount > 0 && borrowAmount <= getLiquidateLimit().sub(loanContract.borrowBalanceCurrent(address(this))));
+		require(borrowAmount > 0 && borrowAmount <= getLiquidateLimit().sub(_loanContract.borrowBalanceCurrent(address(this))));
 
-		uint256 borrowed = loanContract.borrow(borrowAmount);
+		uint256 borrowed = _loanContract.borrow(borrowAmount);
 
 		require(borrowed > 0);
 
@@ -115,10 +130,10 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function claim(uint256 pid) public {
-		require(votingContract.pendingReward(pid) > 0, "No rewards to claim.");
+		require(_votingContract.pendingReward(pid) > 0, "No rewards to claim.");
 
 		uint256 oldBalance = address(this).balance;
-		require(votingContract.claimReward(pid));
+		require(_votingContract.claimReward(pid));
 
 		uint256 newBalance = address(this).balance;
 		uint256 rewardToClaim = newBalance.sub(oldBalance);
@@ -127,12 +142,12 @@ contract Wallet is AccessControl, Global {
 
 			emit ClaimEvent(msg.sender, pid, rewardToClaim);
 		} else {
-			Qevert(); //"Insufficient reward amount."
+			revert(); //"Insufficient reward amount."
 		}
 	}
 
 	function revokeVote(uint256 pid, uint256 amount) public returns (bool success) {
-		require(votingContract.revokeVote(pid, amount));
+		require(_votingContract.revokeVote(pid, amount));
 		emit RevokeEvent(msg.sender, pid, amount);
 		return true;
 	}
@@ -145,11 +160,11 @@ contract Wallet is AccessControl, Global {
 			uint256
 		)
 	{
-		return votingContract.revokingInfo(address(this), pid);
+		return _votingContract.revokingInfo(address(this), pid);
 	}
 
 	function isWithdrawable(uint256 pid) public returns (bool) {
-		return votingContract.isWithdrawable(address(this), pid);
+		return _votingContract.isWithdrawable(address(this), pid);
 	}
 
 	function withdrawVoting(uint256 pid) public returns (uint256 withdrawal) {
@@ -176,10 +191,10 @@ contract Wallet is AccessControl, Global {
 	function repay() public payable {
 		uint256 repayAmount = msg.value;
 		require(repayAmount > 0);
-		require(repayAmount <= loanContract.borrowBalanceCurrent(address(this)));
+		require(repayAmount <= _loanContract.borrowBalanceCurrent(address(this)));
 		require(msg.sender.balance >= repayAmount);
 
-		require(loanContract.repayBehalf{ value: msg.value }(address(this)));
+		require(_loanContract.repayBehalf{ value: msg.value }(address(this)));
 	}
 
 	function revokeAllVoting() public {
@@ -193,8 +208,8 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function liquidate() public payable {
-		uint256 borrowBalanceCurrentAmount = loanContract.borrowBalanceCurrent(address(this));
-		uint256 savingBalance = loanContract.getSavingBalance(address(this));
+		uint256 borrowBalanceCurrentAmount = _loanContract.borrowBalanceCurrent(address(this));
+		uint256 savingBalance = _loanContract.getSavingBalance(address(this));
 		uint256 borrowed = borrowBalanceCurrentAmount.mul(_denominator).div(savingBalance);
 		require(borrowed > _liquidateRate);
 
@@ -221,8 +236,8 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function quickWithdrawal() public {
-		uint256 savingBalance = loanContract.getSavingBalance(address(this));
-		uint256 borrowAmount = savingBalance.mul(_borrowQuicklyRate).div(_denominator).sub(loanContract.borrowBalanceCurrent(address(this)));
+		uint256 savingBalance = _loanContract.getSavingBalance(address(this));
+		uint256 borrowAmount = savingBalance.mul(_borrowQuicklyRate).div(_denominator).sub(_loanContract.borrowBalanceCurrent(address(this)));
 		borrow(borrowAmount);
 		liquidate();
 		emit QuickWithdrawEvent(msg.sender, borrowAmount);
@@ -231,7 +246,7 @@ contract Wallet is AccessControl, Global {
 	// 检查已发起的撤回投票是否完成。
 	// 不存在已发起的撤回投票，以及有未完成的撤回投票，都会返回false。
 	function _haveAllVotesBeenRevoked() private returns (bool allDone) {
-		VotingData[] memory votingDatas = votingContract.getUserVotingSummary(address(this));
+		VotingData[] memory votingDatas = _votingContract.getUserVotingSummary(address(this));
 		if (votingDatas.length > 0) {
 			for (uint256 i = 0; i < votingDatas.length; i++) {
 				VotingData memory votedData = votingDatas[i];
@@ -251,32 +266,32 @@ contract Wallet is AccessControl, Global {
 		require(isWithdrawable(pid) == true);
 
 		uint256 oldBalance = address(this).balance;
-		require(votingContract.withdraw(pid));
+		require(_votingContract.withdraw(pid));
 		uint256 newBalance = address(this).balance;
 		withdrawal = newBalance.sub(oldBalance);
 
 		uint256 result;
 		if (toRepay) {
-			uint256 borrowed = loanContract.borrowBalanceCurrent(msg.sender);
+			uint256 borrowed = _loanContract.borrowBalanceCurrent(msg.sender);
 			uint256 repayAmount = borrowed.min(address(this).balance);
 
-			require(loanContract.repayBehalf{ value: repayAmount }(address(this)));
+			require(_loanContract.repayBehalf{ value: repayAmount }(address(this)));
 
 			emit RepayEvent(msg.sender, pid, repayAmount);
 		}
 
-		result = loanContract.redeemUnderlying(withdrawal);
+		result = _loanContract.redeemUnderlying(withdrawal);
 
 		require(result == withdrawal);
 
 		_HTT.burn(result);
 
-		emit BurnHTTEvent(msg.sender, pid, result);
+		emit BurnHTTEvent(msg.sender, result);
 	}
 
 	// 撤回全部投票的全部量，只供清算时内部调用。
 	function _revokeAll() private returns (bool allDone) {
-		VotingData[] memory votingDatas = votingContract.getUserVotingSummary(address(this));
+		VotingData[] memory votingDatas = _votingContract.getUserVotingSummary(address(this));
 		if (votingDatas.length > 0) {
 			for (uint256 i = 0; i < votingDatas.length; i++) {
 				VotingData memory votedData = votingDatas[i];
@@ -290,7 +305,7 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function _withdrawAllVoting(bool toRepay) private returns (uint256 totalAmount) {
-		VotingData[] memory votingDatas = votingContract.getUserVotingSummary(address(this));
+		VotingData[] memory votingDatas = _votingContract.getUserVotingSummary(address(this));
 		if (votingDatas.length > 0) {
 			for (uint256 i = 0; i < votingDatas.length; i++) {
 				VotingData memory votedData = votingDatas[i];
