@@ -283,7 +283,11 @@ contract Wallet is AccessControl, Global {
 		}
 	}
 
-	function _exchangeRateStored() private view returns (uint256) {
+	function _exchangeRateStored() private returns (uint256) {
+		uint256 result = _config.loanContract().exchangeRateCurrent();
+		if (result > 0) {
+			_exchangeRate = result;
+		}
 		return _exchangeRate;
 	}
 }

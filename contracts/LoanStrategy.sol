@@ -19,4 +19,6 @@ interface LoanStrategy is Global {
 	function getCompBalanceWithAccrued(address owner) external returns (uint256);
 
 	function claimComp(address owner) external returns (bool);
+
+	function exchangeRateCurrent() external returns (uint256);
 }

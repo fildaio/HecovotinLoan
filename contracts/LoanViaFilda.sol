@@ -35,7 +35,6 @@ interface CTokenInterface {
 	// function supplyRatePerBlock() external view returns (uint);
 	// function totalBorrowsCurrent() external returns (uint);
 	// function borrowBalanceStored(address account) public view returns (uint);
-	// function exchangeRateCurrent() public returns (uint);
 	// function exchangeRateStored() public view returns (uint);
 	// function getCash() external view returns (uint);
 	// function accrueInterest() public returns (uint);
@@ -43,6 +42,8 @@ interface CTokenInterface {
 	function borrowBalanceCurrent(address account) external returns (uint256);
 
 	function balanceOfUnderlying(address owner) external returns (uint256);
+
+	function exchangeRateCurrent() external returns (uint256);
 }
 
 interface MaximillionInterface {
@@ -140,5 +141,9 @@ contract LoanViaFilda is LoanStrategy {
 		} catch {
 			return false;
 		}
+	}
+
+	function exchangeRateCurrent() external override returns (uint256) {
+		return cToken.exchangeRateCurrent();
 	}
 }
