@@ -206,7 +206,6 @@ contract Wallet is AccessControl, Global {
 		uint256 savingBalance = _config.loanContract().getSavingBalance(address(this));
 		uint256 borrowAmount = savingBalance.mul(_config.borrowQuicklyRate()).div(_config.denominator()).sub(_config.loanContract().borrowBalanceCurrent(address(this)).mul(_exchangeRateStored()).div(_config.decimals()));
 		borrow(borrowAmount);
-		liquidate();
 
 		emit QuickWithdrawEvent(msg.sender, borrowAmount);
 	}
