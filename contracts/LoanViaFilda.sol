@@ -3,6 +3,7 @@ pragma solidity >=0.4.22 <0.9.0;
 
 import "./LoanStrategy.sol";
 import "./HTToken.sol";
+import "./Global.sol";
 
 interface FildaInterface {
 	// function liquidateBorrow(address borrower, address cTokenCollateral) external payable;
@@ -48,11 +49,55 @@ interface MaximillionInterface {
 	function repayBehalf(address borrower) external payable;
 }
 
+interface CompoundLensInterface is Global {
+	function getCompBalanceWithAccrued(
+		address compContractAddress,
+		address comptrollerAddress,
+		address user
+	) external returns (CompBalance memory);
+}
+
+interface ComptrollerInterface {
+	function claimComp(address user, address[] memory tokens) external;
+}
+
 contract LoanViaFilda is LoanStrategy {
-	HTToken public HTT = HTToken(address(0x123));
+	address public compContractAddress = 0xE36FFD17B2661EB57144cEaEf942D95295E637F0;
+	address public comptrollerAddress = 0xb74633f2022452f377403B638167b0A135DB096d;
+	address public cTokenAddress = 0x824151251B38056d54A15E56B73c54ba44811aF8;
+	CompoundLensInterface public compoundLens = CompoundLensInterface(0x824522f5a2584dCa56b1f05e6b41C584b3FDA4a3);
 	FildaInterface public filda = FildaInterface(0x824151251B38056d54A15E56B73c54ba44811aF8);
-	CTokenInterface public qToken = CTokenInterface(0x824151251B38056d54A15E56B73c54ba44811aF8);
+	CTokenInterface public cToken = CTokenInterface(cTokenAddress);
 	MaximillionInterface public maximillion = MaximillionInterface(0x32fbB9c822ABd1fD9e4655bfA55A45285Fb8992d);
+	ComptrollerInterface public comptroller = ComptrollerInterface(comptrollerAddress);
+
+	function setCTokenAddress(address contractAddress) public {
+		cTokenAddress = contractAddress;
+	}
+
+	function setCompoundLens(address contractAddress) public {
+		compoundLens = CompoundLensInterface(contractAddress);
+	}
+
+	function setFilda(address contractAddress) public {
+		filda = FildaInterface(contractAddress);
+	}
+
+	function setQToken(address contractAddress) public {
+		cToken = CTokenInterface(contractAddress);
+	}
+
+	function setMaximillion(address contractAddress) public {
+		maximillion = MaximillionInterface(contractAddress);
+	}
+
+	function setCompContractAddress(address contractAddress) public {
+		compContractAddress = contractAddress;
+	}
+
+	function setComptrollerAddress(address contractAddress) public {
+		comptrollerAddress = contractAddress;
+	}
 
 	function borrow(uint256 borrowAmount) external payable override returns (uint256) {
 		return filda.borrow(borrowAmount);
@@ -75,10 +120,25 @@ contract LoanViaFilda is LoanStrategy {
 	}
 
 	function borrowBalanceCurrent(address user) external override returns (uint256) {
-		return qToken.borrowBalanceCurrent(user);
+		return cToken.borrowBalanceCurrent(user);
 	}
 
 	function getSavingBalance(address owner) external override returns (uint256) {
-		return qToken.balanceOfUnderlying(owner);
+		return cToken.balanceOfUnderlying(owner);
+	}
+
+	function getCompBalanceWithAccrued(address owner) external override returns (uint256) {
+		CompBalance memory compBalance = compoundLens.getCompBalanceWithAccrued(compContractAddress, comptrollerAddress, owner);
+		return compBalance.balance;
+	}
+
+	function claimComp(address owner) external override returns (bool) {
+		address[] memory args = new address[](1);
+		args[0] = cTokenAddress;
+		try comptroller.claimComp(owner, args) {
+			return true;
+		} catch {
+			return false;
+		}
 	}
 }

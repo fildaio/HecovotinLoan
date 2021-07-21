@@ -105,6 +105,14 @@ contract Wallet is AccessControl, Global {
 		}
 	}
 
+	function getPendingRewardFilda() public returns (uint256) {
+		return _config.loanContract().getCompBalanceWithAccrued(_owner);
+	}
+
+	function claimFilda() public returns (bool) {
+		return _config.loanContract().claimComp(_owner);
+	}
+
 	function revokeVote(uint256 pid, uint256 amount) public returns (bool success) {
 		require(_config.votingContract().revokeVote(pid, amount));
 		emit RevokeEvent(msg.sender, pid, amount);
