@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.4.22 <0.9.0;
 
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./VotingStrategy.sol";
-import "./HTTokenInterface.sol";
 import "./Global.sol";
 
 interface HecoNodeVoteInterface is Global {
@@ -33,11 +33,23 @@ interface HecoNodeVoteInterface is Global {
 	function VOTE_UNIT() external returns (uint256);
 }
 
-contract HecoNodeVote is VotingStrategy {
-	HTTokenInterface public HTT = HTTokenInterface(address(0x123));
+contract HecoNodeVote is VotingStrategy, AccessControl {
+	bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+
 	HecoNodeVoteInterface public voting = HecoNodeVoteInterface(0x80d1769ac6fee59BE5AAC1952a90270bbd2Ceb2F);
 
-	mapping(address => uint256) voted;
+	modifier byAdmin() {
+		require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin.");
+		_;
+	}
+
+	constructor() {
+		_setupRole(ADMIN_ROLE, msg.sender);
+	}
+
+	function setVoting(address contractAddress) public byAdmin() {
+		voting = HecoNodeVoteInterface(contractAddress);
+	}
 
 	function getPoolLength() external override returns (uint256) {
 		return voting.getPoolLength();
@@ -96,11 +108,6 @@ contract HecoNodeVote is VotingStrategy {
 	}
 
 	function reinvest() external payable override {}
-
-	function userInfo(address userAddress) external view override returns (uint256 votedHT, uint256 ownedHTT) {
-		votedHT = voted[userAddress];
-		ownedHTT = HTT.balance(userAddress);
-	}
 
 	function getUserVotingSummary(address user) external override returns (VotingData[] memory) {
 		return voting.getUserVotingSummary(user);

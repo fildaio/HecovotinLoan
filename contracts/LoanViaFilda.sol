@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.4.22 <0.9.0;
 
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./LoanStrategy.sol";
 import "./HTToken.sol";
 import "./Global.sol";
@@ -62,7 +63,9 @@ interface ComptrollerInterface {
 	function claimComp(address user, address[] memory tokens) external;
 }
 
-contract LoanViaFilda is LoanStrategy {
+contract LoanViaFilda is LoanStrategy, AccessControl {
+	bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+
 	address public compContractAddress = 0xE36FFD17B2661EB57144cEaEf942D95295E637F0;
 	address public comptrollerAddress = 0xb74633f2022452f377403B638167b0A135DB096d;
 	address public cTokenAddress = 0x824151251B38056d54A15E56B73c54ba44811aF8;
@@ -72,31 +75,40 @@ contract LoanViaFilda is LoanStrategy {
 	MaximillionInterface public maximillion = MaximillionInterface(0x32fbB9c822ABd1fD9e4655bfA55A45285Fb8992d);
 	ComptrollerInterface public comptroller = ComptrollerInterface(comptrollerAddress);
 
-	function setCTokenAddress(address contractAddress) public {
+	modifier byAdmin() {
+		require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin.");
+		_;
+	}
+
+	constructor() {
+		_setupRole(ADMIN_ROLE, msg.sender);
+	}
+
+	function setCTokenAddress(address contractAddress) public byAdmin() {
 		cTokenAddress = contractAddress;
 	}
 
-	function setCompoundLens(address contractAddress) public {
+	function setCompoundLens(address contractAddress) public byAdmin() {
 		compoundLens = CompoundLensInterface(contractAddress);
 	}
 
-	function setFilda(address contractAddress) public {
+	function setFilda(address contractAddress) public byAdmin() {
 		filda = FildaInterface(contractAddress);
 	}
 
-	function setQToken(address contractAddress) public {
+	function setQToken(address contractAddress) public byAdmin() {
 		cToken = CTokenInterface(contractAddress);
 	}
 
-	function setMaximillion(address contractAddress) public {
+	function setMaximillion(address contractAddress) public byAdmin() {
 		maximillion = MaximillionInterface(contractAddress);
 	}
 
-	function setCompContractAddress(address contractAddress) public {
+	function setCompContractAddress(address contractAddress) public byAdmin() {
 		compContractAddress = contractAddress;
 	}
 
-	function setComptrollerAddress(address contractAddress) public {
+	function setComptrollerAddress(address contractAddress) public byAdmin() {
 		comptrollerAddress = contractAddress;
 	}
 

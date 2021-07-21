@@ -20,8 +20,6 @@ interface VotingStrategy is Global {
 
 	function reinvest() external payable;
 
-	function userInfo(address userAddress) external returns (uint256 votedHT, uint256 ownedHTT);
-
 	function getUserVotingSummary(address user) external returns (VotingData[] memory);
 
 	function VOTE_UNIT() external returns (uint256);
