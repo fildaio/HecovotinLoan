@@ -22,6 +22,10 @@ interface VotingStrategy is Global {
 
 	function userInfo(address userAddress) external returns (uint256 votedHT, uint256 ownedHTT);
 
+	function getUserVotingSummary(address user) external returns (VotingData[] memory);
+
+	function VOTE_UNIT() external returns (uint256);
+
 	function revokingInfo(address user, uint256 pid)
 		external
 		returns (
@@ -29,6 +33,4 @@ interface VotingStrategy is Global {
 			uint8,
 			uint256
 		);
-
-	function getUserVotingSummary(address user) external returns (VotingData[] memory);
 }

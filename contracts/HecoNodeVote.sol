@@ -29,6 +29,8 @@ interface HecoNodeVoteInterface is Global {
 			uint8,
 			uint256
 		);
+
+	function VOTE_UNIT() external returns (uint256);
 }
 
 contract HecoNodeVote is VotingStrategy {
@@ -102,5 +104,9 @@ contract HecoNodeVote is VotingStrategy {
 
 	function getUserVotingSummary(address user) external override returns (VotingData[] memory) {
 		return voting.getUserVotingSummary(user);
+	}
+
+	function VOTE_UNIT() external override returns (uint256) {
+		return voting.VOTE_UNIT();
 	}
 }
