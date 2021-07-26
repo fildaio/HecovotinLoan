@@ -9,6 +9,4 @@ interface HTTokenInterface is IERC20 {
 	function burn(uint256 amount) external returns (bool);
 
 	function transferTo(address recipient, uint256 amount) external returns (bool);
-
-	function balance(address userAddress) external view returns (uint256);
 }

@@ -20,70 +20,82 @@ contract GlobalConfig is AccessControl {
 	uint256 public liquidateRate = 9000;
 	uint256 public bonusRateForLiquidater = 300;
 	IERC20 public Filda = IERC20(0xE36FFD17B2661EB57144cEaEf942D95295E637F0);
-	HTTokenInterface public HTT = HTTokenInterface(address(0x123));
+	address public HTTAddress;
+	HTTokenInterface public HTT = HTTokenInterface(HTTAddress);
 	VotingStrategy public votingContract = VotingStrategy(0x80d1769ac6fee59BE5AAC1952a90270bbd2Ceb2F);
 	LoanStrategy public loanContract = LoanStrategy(address(0x123));
-
-	modifier byAdmin() {
-		require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin.");
-		_;
-	}
-
-	modifier byConfigRole() {
-		require(hasRole(CONFIG_ROLE, msg.sender) || hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin or the configuration roles..");
-		_;
-	}
 
 	constructor() {
 		_setupRole(ADMIN_ROLE, msg.sender);
 		_setupRole(CONFIG_ROLE, msg.sender);
 	}
 
-	function setConfigRole(address configRoleAddress) public byAdmin() {
+	function setConfigRole(address configRoleAddress) public {
+		_byAdmin();
 		_setupRole(CONFIG_ROLE, configRoleAddress);
 	}
 
-	function setVoteOn(bool value) public byAdmin() {
+	function setVoteOn(bool value) public {
+		_byAdmin();
 		voteOn = value;
 	}
 
-	function setWithdrawalOn(bool value) public byAdmin() {
+	function setWithdrawalOn(bool value) public {
+		_byAdmin();
 		withdrawalOn = value;
 	}
 
-	function setHTToken(address contractAddress) public byConfigRole() {
+	function setHTToken(address contractAddress) public {
+		_byConfigRole();
+		HTTAddress = contractAddress;
 		HTT = HTTokenInterface(contractAddress);
 	}
 
-	function setVotingContract(address contractAddress) public byConfigRole() {
+	function setVotingContract(address contractAddress) public {
+		_byConfigRole();
 		votingContract = VotingStrategy(contractAddress);
 	}
 
-	function setLoanContract(address contractAddress) public byConfigRole() {
+	function setLoanContract(address contractAddress) public {
+		_byConfigRole();
 		loanContract = LoanStrategy(contractAddress);
 	}
 
-	function setHTTokenDecimals(uint256 value) public byConfigRole() {
+	function setHTTokenDecimals(uint256 value) public {
+		_byConfigRole();
 		decimals = value;
 	}
 
-	function setDenominator(uint256 value) public byConfigRole() {
+	function setDenominator(uint256 value) public {
+		_byConfigRole();
 		denominator = value;
 	}
 
-	function setBorrowRate(uint256 value) public byConfigRole() {
+	function setBorrowRate(uint256 value) public {
+		_byConfigRole();
 		borrowRate = value;
 	}
 
-	function setBorrowQuicklyRate(uint256 value) public byConfigRole() {
+	function setBorrowQuicklyRate(uint256 value) public {
+		_byConfigRole();
 		borrowQuicklyRate = value;
 	}
 
-	function setLiquidateRate(uint256 value) public byConfigRole() {
+	function setLiquidateRate(uint256 value) public {
+		_byConfigRole();
 		liquidateRate = value;
 	}
 
-	function setBonusRateForLiquidater(uint256 value) public byConfigRole() {
+	function setBonusRateForLiquidater(uint256 value) public {
+		_byConfigRole();
 		bonusRateForLiquidater = value;
+	}
+
+	function _byAdmin() private view {
+		require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin.");
+	}
+
+	function _byConfigRole() private view {
+		require(hasRole(CONFIG_ROLE, msg.sender) || hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin or the configuration roles..");
 	}
 }

@@ -37,17 +37,12 @@ contract Wallet is AccessControl, Global {
 		_config = GlobalConfig(config);
 	}
 
-	modifier voteOn() {
-		require(_config.voteOn() == true, "Vote is disabled.");
-		_;
+	function approve(uint256 amount) public returns (bool) {
+		return _config.HTT().approve(_config.HTTAddress(), amount);
 	}
 
-	modifier withdrawalOn() {
-		require(_config.withdrawalOn() == true, "Withdrawal is disabled");
-		_;
-	}
-
-	function vote(uint256 pid) public payable voteOn() {
+	function vote(uint256 pid) public payable {
+		_voteOn();
 		require(msg.sender == _owner);
 
 		uint256 amount = msg.value;
@@ -59,7 +54,7 @@ contract Wallet is AccessControl, Global {
 
 		uint256 integerAmount = amount.div(minVoteAmount).mul(minVoteAmount);
 
-		require(integerAmount > 0, "vote number is zero");
+		require(integerAmount > 0, "amount == 0");
 
 		uint256 difference = amount.sub(integerAmount);
 		if (difference > 0) {
@@ -68,11 +63,11 @@ contract Wallet is AccessControl, Global {
 
 		require(_config.votingContract().vote{ value: integerAmount }(pid));
 
-		uint256 oldBalance = _config.HTT().balance(address(this));
+		uint256 oldBalance = _config.HTT().balanceOf(address(this));
 
-		require(_config.HTT().mint(integerAmount), "Failed to mint HTT");
+		require(_config.HTT().mint(integerAmount), "mint error");
 
-		uint256 newBalance = _config.HTT().balance(address(this));
+		uint256 newBalance = _config.HTT().balanceOf(address(this));
 
 		require(newBalance.sub(oldBalance) == integerAmount);
 
@@ -144,22 +139,25 @@ contract Wallet is AccessControl, Global {
 		return _config.votingContract().isWithdrawable(address(this), pid);
 	}
 
-	function withdrawVoting(uint256 pid) public withdrawalOn() returns (uint256 withdrawal) {
+	function withdrawVoting(uint256 pid) public returns (uint256 withdrawal) {
 		require(msg.sender == _owner);
+		_withdrawalOn();
 		withdrawal = _withdrawOrRepay(pid, false);
 		payable(msg.sender).transfer(address(this).balance);
 		emit WithdrawEvent(msg.sender, pid, withdrawal);
 	}
 
-	function withdrawAndRepay(uint256 pid) public withdrawalOn() returns (uint256 withdrawal) {
+	function withdrawAndRepay(uint256 pid) public returns (uint256 withdrawal) {
 		require(msg.sender == _owner);
+		_withdrawalOn();
 		withdrawal = _withdrawOrRepay(pid, true);
 		payable(msg.sender).transfer(address(this).balance);
 		emit WithdrawEvent(msg.sender, pid, withdrawal);
 	}
 
-	function withdrawAndRepayAll() public withdrawalOn() {
+	function withdrawAndRepayAll() public {
 		require(msg.sender == _owner);
+		_withdrawalOn();
 		uint256 withdrawal = _withdrawAllVoting(true);
 		payable(msg.sender).transfer(address(this).balance);
 		emit WithdrawEvent(msg.sender, 99999, withdrawal);
@@ -179,8 +177,9 @@ contract Wallet is AccessControl, Global {
 		_revokeAll();
 	}
 
-	function withdrawAllVoting() public withdrawalOn() returns (uint256 totalAmount) {
+	function withdrawAllVoting() public returns (uint256 totalAmount) {
 		require(msg.sender == _owner);
+		_withdrawalOn();
 		return _withdrawAllVoting(false);
 	}
 
@@ -212,7 +211,8 @@ contract Wallet is AccessControl, Global {
 		}
 	}
 
-	function quickWithdrawal() public withdrawalOn() {
+	function quickWithdrawal() public {
+		_withdrawalOn();
 		uint256 savingBalance = _config.loanContract().getSavingBalance(address(this));
 		uint256 borrowAmount = savingBalance.mul(_config.borrowQuicklyRate()).div(_config.denominator()).sub(_config.loanContract().borrowBalanceCurrent(address(this)).mul(_exchangeRateStored()).div(_config.decimals()));
 		borrow(borrowAmount);
@@ -299,5 +299,13 @@ contract Wallet is AccessControl, Global {
 			_exchangeRate = result;
 		}
 		return _exchangeRate;
+	}
+
+	function _voteOn() private view {
+		require(_config.voteOn() == true, "Vote disabled.");
+	}
+
+	function _withdrawalOn() private view {
+		require(_config.withdrawalOn() == true, "Withdrawal disabled");
 	}
 }

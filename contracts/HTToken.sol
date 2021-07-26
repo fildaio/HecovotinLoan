@@ -14,11 +14,6 @@ contract HTToken is ERC20, HTTokenInterface {
 
 	WalletFactoryInterface private _factory;
 
-	modifier isWalletContract() {
-		require(_factory.getOwner(msg.sender) != address(0));
-		_;
-	}
-
 	constructor(uint256 initialSupply) ERC20("HT Token", "HTT") {
 		_mint(msg.sender, initialSupply);
 	}
@@ -27,7 +22,8 @@ contract HTToken is ERC20, HTTokenInterface {
 		_factory = WalletFactoryInterface(factory);
 	}
 
-	function mint(uint256 amount) external override isWalletContract() returns (bool) {
+	function mint(uint256 amount) external override returns (bool) {
+		_isWalletContract();
 		uint256 oldBalance = balanceOf(msg.sender);
 		_mint(msg.sender, amount);
 		uint256 newBalance = balanceOf(msg.sender);
@@ -38,7 +34,8 @@ contract HTToken is ERC20, HTTokenInterface {
 		}
 	}
 
-	function burn(uint256 amount) external override isWalletContract() returns (bool) {
+	function burn(uint256 amount) external override returns (bool) {
+		_isWalletContract();
 		uint256 oldBalance = balanceOf(msg.sender);
 		_burn(msg.sender, amount);
 		uint256 newBalance = balanceOf(msg.sender);
@@ -49,11 +46,12 @@ contract HTToken is ERC20, HTTokenInterface {
 		}
 	}
 
-	function transferTo(address recipient, uint256 amount) external override isWalletContract() returns (bool) {
+	function transferTo(address recipient, uint256 amount) external override returns (bool) {
+		_isWalletContract();
 		return transfer(recipient, amount);
 	}
 
-	function balance(address userAddress) external view override returns (uint256) {
-		return balanceOf(userAddress);
+	function _isWalletContract() private view {
+		require(_factory.getOwner(msg.sender) != address(0));
 	}
 }

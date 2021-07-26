@@ -7,13 +7,6 @@ import "./HTToken.sol";
 import "./Global.sol";
 
 interface FildaInterface {
-	// function liquidateBorrow(address borrower, address cTokenCollateral) external payable;
-	// function repayBorrowBehalf(address borrower) external payable;
-	// function repayBorrow() external payable;
-	// ============================
-	// function borrow(uint borrowAmount) external returns (uint);
-	// function redeem(uint redeemTokens) external returns (uint);
-	// function liquidateBorrow(address borrower, uint repayAmount, CTokenInterface cTokenCollateral) external returns (uint);
 	function mint(uint256 mintAmount) external returns (uint256);
 
 	function borrow(uint256 borrowAmount) external returns (uint256);
@@ -21,25 +14,9 @@ interface FildaInterface {
 	function redeemUnderlying(uint256 redeemAmount) external returns (uint256);
 
 	function repayBorrow(uint256 repayAmount) external returns (uint256);
-
-	// function repayBorrowBehalf(address borrower, uint256 repayAmount) external returns (uint256);
 }
 
 interface CTokenInterface {
-	// function transfer(address dst, uint amount) external returns (bool);
-	// function transferFrom(address src, address dst, uint amount) external returns (bool);
-	// function approve(address spender, uint amount) external returns (bool);
-	// function allowance(address owner, address spender) external view returns (uint);
-	// function balanceOf(address owner) external view returns (uint);
-	// function getAccountSnapshot(address account) external view returns (uint, uint, uint, uint);
-	// function borrowRatePerBlock() external view returns (uint);
-	// function supplyRatePerBlock() external view returns (uint);
-	// function totalBorrowsCurrent() external returns (uint);
-	// function borrowBalanceStored(address account) public view returns (uint);
-	// function exchangeRateStored() public view returns (uint);
-	// function getCash() external view returns (uint);
-	// function accrueInterest() public returns (uint);
-	// function seize(address liquidator, address borrower, uint seizeTokens) external returns (uint);
 	function borrowBalanceCurrent(address account) external returns (uint256);
 
 	function balanceOfUnderlying(address owner) external returns (uint256);
@@ -75,40 +52,42 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	MaximillionInterface public maximillion = MaximillionInterface(0x32fbB9c822ABd1fD9e4655bfA55A45285Fb8992d);
 	ComptrollerInterface public comptroller = ComptrollerInterface(comptrollerAddress);
 
-	modifier byAdmin() {
-		require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin.");
-		_;
-	}
-
 	constructor() {
 		_setupRole(ADMIN_ROLE, msg.sender);
 	}
 
-	function setCTokenAddress(address contractAddress) public byAdmin() {
+	function setCTokenAddress(address contractAddress) public {
+		_byAdmin();
 		cTokenAddress = contractAddress;
 	}
 
-	function setCompoundLens(address contractAddress) public byAdmin() {
+	function setCompoundLens(address contractAddress) public {
+		_byAdmin();
 		compoundLens = CompoundLensInterface(contractAddress);
 	}
 
-	function setFilda(address contractAddress) public byAdmin() {
+	function setFilda(address contractAddress) public {
+		_byAdmin();
 		filda = FildaInterface(contractAddress);
 	}
 
-	function setQToken(address contractAddress) public byAdmin() {
+	function setQToken(address contractAddress) public {
+		_byAdmin();
 		cToken = CTokenInterface(contractAddress);
 	}
 
-	function setMaximillion(address contractAddress) public byAdmin() {
+	function setMaximillion(address contractAddress) public {
+		_byAdmin();
 		maximillion = MaximillionInterface(contractAddress);
 	}
 
-	function setCompContractAddress(address contractAddress) public byAdmin() {
+	function setCompContractAddress(address contractAddress) public {
+		_byAdmin();
 		compContractAddress = contractAddress;
 	}
 
-	function setComptrollerAddress(address contractAddress) public byAdmin() {
+	function setComptrollerAddress(address contractAddress) public {
+		_byAdmin();
 		comptrollerAddress = contractAddress;
 	}
 
@@ -157,5 +136,9 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 
 	function exchangeRateCurrent() external override returns (uint256) {
 		return cToken.exchangeRateCurrent();
+	}
+
+	function _byAdmin() private view {
+		require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin.");
 	}
 }
