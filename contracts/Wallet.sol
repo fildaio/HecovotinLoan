@@ -43,7 +43,7 @@ contract Wallet is AccessControl, Global {
 
 	function vote(uint256 pid) public payable {
 		_voteOn();
-		require(msg.sender == _owner);
+		_isOwner();
 
 		uint256 amount = msg.value;
 		uint256 minVoteAmount = _config.votingContract().VOTE_UNIT();
@@ -80,11 +80,12 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function getBorrowLimit() public returns (uint256) {
-		return _config.loanContract().getSavingBalance(address(this)).mul(_config.borrowRate()).div(_config.denominator()).sub(_config.loanContract().borrowBalanceCurrent(address(this))).mul(_exchangeRateStored()).div(_config.decimals());
+		return _config.loanContract().getSavingBalance(address(this)).mul(_config.borrowRate()).div(_config.denominator()).sub(_config.loanContract().borrowBalanceCurrent(address(this))).div(_config.decimals());
 	}
 
 	function borrow(uint256 borrowAmount) public {
-		require(msg.sender == _owner);
+		_isOwner();
+
 		require(borrowAmount > 0 && borrowAmount <= getBorrowLimit());
 		require(_config.loanContract().borrow(borrowAmount) == 0, "Failed to borrow");
 
@@ -94,6 +95,8 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function claim(uint256 pid) public {
+		_isOwner();
+
 		require(_config.votingContract().pendingReward(pid) > 0, "No rewards to claim");
 
 		uint256 oldBalance = address(this).balance;
@@ -140,24 +143,27 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function withdrawVoting(uint256 pid) public returns (uint256 withdrawal) {
-		require(msg.sender == _owner);
+		_isOwner();
 		_withdrawalOn();
+
 		withdrawal = _withdrawOrRepay(pid, false);
 		payable(msg.sender).transfer(address(this).balance);
 		emit WithdrawEvent(msg.sender, pid, withdrawal);
 	}
 
 	function withdrawAndRepay(uint256 pid) public returns (uint256 withdrawal) {
-		require(msg.sender == _owner);
+		_isOwner();
 		_withdrawalOn();
+
 		withdrawal = _withdrawOrRepay(pid, true);
 		payable(msg.sender).transfer(address(this).balance);
 		emit WithdrawEvent(msg.sender, pid, withdrawal);
 	}
 
 	function withdrawAndRepayAll() public {
-		require(msg.sender == _owner);
+		_isOwner();
 		_withdrawalOn();
+
 		uint256 withdrawal = _withdrawAllVoting(true);
 		payable(msg.sender).transfer(address(this).balance);
 		emit WithdrawEvent(msg.sender, 99999, withdrawal);
@@ -173,13 +179,14 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function revokeAllVoting() public {
-		require(msg.sender == _owner);
+		_isOwner();
 		_revokeAll();
 	}
 
 	function withdrawAllVoting() public returns (uint256 totalAmount) {
-		require(msg.sender == _owner);
+		_isOwner();
 		_withdrawalOn();
+
 		return _withdrawAllVoting(false);
 	}
 
@@ -307,5 +314,9 @@ contract Wallet is AccessControl, Global {
 
 	function _withdrawalOn() private view {
 		require(_config.withdrawalOn() == true, "Withdrawal disabled");
+	}
+
+	function _isOwner() private view {
+		require(msg.sender == _owner);
 	}
 }
