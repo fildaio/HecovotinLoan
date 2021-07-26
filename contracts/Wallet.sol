@@ -135,6 +135,7 @@ contract Wallet is AccessControl, Global {
 
 	function revokingInfo(uint256 pid)
 		public
+		view
 		returns (
 			uint256,
 			uint8,

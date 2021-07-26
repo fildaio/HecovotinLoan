@@ -24,6 +24,7 @@ interface HecoNodeVoteInterface is Global {
 
 	function revokingInfo(address _user, uint256 _pid)
 		external
+		view
 		returns (
 			uint256,
 			uint8,
@@ -69,6 +70,7 @@ contract HecoNodeVote is VotingStrategy, AccessControl {
 
 	function revokingInfo(address user, uint256 pid)
 		external
+		view
 		override
 		returns (
 			uint256,

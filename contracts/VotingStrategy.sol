@@ -26,6 +26,7 @@ interface VotingStrategy is Global {
 
 	function revokingInfo(address user, uint256 pid)
 		external
+		view
 		returns (
 			uint256,
 			uint8,
