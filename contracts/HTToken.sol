@@ -4,10 +4,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./HTTokenInterface.sol";
-
-interface WalletFactoryInterface {
-	function getOwner(address walletAddress) external view returns (address);
-}
+import "./WalletFactoryInterface.sol";
 
 contract HTToken is ERC20, HTTokenInterface {
 	using SafeMath for uint256;

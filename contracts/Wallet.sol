@@ -163,7 +163,10 @@ contract Wallet is AccessControl, Global {
 		_withdrawalOn();
 
 		withdrawal = _withdrawOrRepay(pid, true);
-		payable(msg.sender).transfer(address(this).balance);
+		uint256 balance = address(this).balance;
+		if (balance > 0) {
+			payable(msg.sender).transfer(balance);
+		}
 		emit WithdrawEvent(msg.sender, pid, withdrawal);
 	}
 
@@ -228,7 +231,7 @@ contract Wallet is AccessControl, Global {
 	function quickWithdrawal() public {
 		_withdrawalOn();
 		uint256 savingBalance = _config.loanContract().getSavingBalance(address(this));
-		uint256 borrowAmount = savingBalance.mul(_config.borrowQuicklyRate()).div(_config.denominator()).sub(_config.loanContract().borrowBalanceCurrent(address(this)).mul(_exchangeRateStored()).div(_config.decimals()));
+		uint256 borrowAmount = savingBalance.mul(_config.borrowQuicklyRate()).div(_config.denominator()).sub(_config.loanContract().borrowBalanceCurrent(address(this)).div(_config.decimals()));
 		borrow(borrowAmount);
 		liquidate();
 
@@ -262,23 +265,24 @@ contract Wallet is AccessControl, Global {
 		uint256 newBalance = address(this).balance;
 		withdrawal = newBalance.sub(oldBalance);
 
-		uint256 result;
 		if (toRepay) {
 			uint256 borrowed = _config.loanContract().borrowBalanceCurrent(msg.sender);
 			uint256 repayAmount = borrowed.min(address(this).balance);
 
-			require(_config.loanContract().repayBehalf{ value: repayAmount }(address(this)));
-
-			emit RepayEvent(msg.sender, pid, repayAmount);
+			if (repayAmount > 0) {
+				require(_config.loanContract().repayBehalf{ value: repayAmount }(address(this)));
+				emit RepayEvent(msg.sender, pid, repayAmount);
+			}
 		}
 
-		result = _config.loanContract().redeemUnderlying(withdrawal);
+		oldBalance = _config.HTT().balanceOf(address(this));
+		_config.loanContract().redeemUnderlying(withdrawal);
+		newBalance = _config.HTT().balanceOf(address(this));
 
-		require(result == withdrawal);
+		require(newBalance.sub(oldBalance) == withdrawal, "Incorrect withdrawal amount");
+		require(_config.HTT().burn(withdrawal), "burn error");
 
-		_config.HTT().burn(result);
-
-		emit BurnHTTEvent(msg.sender, result);
+		emit BurnHTTEvent(msg.sender, withdrawal);
 	}
 
 	function _revokeAll() private returns (bool allDone) {

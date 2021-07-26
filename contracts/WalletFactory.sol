@@ -2,8 +2,9 @@
 pragma solidity >=0.4.22 <0.9.0;
 
 import "./Wallet.sol";
+import "./WalletFactoryInterface.sol";
 
-contract WalletFactory {
+contract WalletFactory is WalletFactoryInterface {
 	mapping(address => address) private _wallets;
 	mapping(address => address) private _users;
 
@@ -23,7 +24,7 @@ contract WalletFactory {
 		return _wallets[owner];
 	}
 
-	function getOwner(address walletAddress) public view returns (address) {
+	function getOwner(address walletAddress) public view override returns (address) {
 		return _users[walletAddress];
 	}
 }
