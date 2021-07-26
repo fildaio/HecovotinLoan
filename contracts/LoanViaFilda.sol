@@ -6,7 +6,7 @@ import "./LoanStrategy.sol";
 import "./HTToken.sol";
 import "./Global.sol";
 
-interface FildaInterface {
+interface flashLoanInterface {
 	function mint(uint256 mintAmount) external returns (uint256);
 
 	function borrow(uint256 borrowAmount) external returns (uint256);
@@ -37,7 +37,7 @@ interface CompoundLensInterface is Global {
 }
 
 interface ComptrollerInterface {
-	function claimComp(address user, address[] memory tokens) external;
+	function claimComp(address user, address[1] memory tokens) external;
 }
 
 contract LoanViaFilda is LoanStrategy, AccessControl {
@@ -47,7 +47,7 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	address public comptrollerAddress = 0xb74633f2022452f377403B638167b0A135DB096d;
 	address public cTokenAddress = 0x824151251B38056d54A15E56B73c54ba44811aF8;
 	CompoundLensInterface public compoundLens = CompoundLensInterface(0x824522f5a2584dCa56b1f05e6b41C584b3FDA4a3);
-	FildaInterface public filda = FildaInterface(0x824151251B38056d54A15E56B73c54ba44811aF8);
+	flashLoanInterface public flashLoan = flashLoanInterface(0x824151251B38056d54A15E56B73c54ba44811aF8);
 	CTokenInterface public cToken = CTokenInterface(cTokenAddress);
 	MaximillionInterface public maximillion = MaximillionInterface(0x32fbB9c822ABd1fD9e4655bfA55A45285Fb8992d);
 	ComptrollerInterface public comptroller = ComptrollerInterface(comptrollerAddress);
@@ -66,9 +66,9 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 		compoundLens = CompoundLensInterface(contractAddress);
 	}
 
-	function setFilda(address contractAddress) public {
+	function setFlashLoan(address contractAddress) public {
 		_byAdmin();
-		filda = FildaInterface(contractAddress);
+		flashLoan = flashLoanInterface(contractAddress);
 	}
 
 	function setQToken(address contractAddress) public {
@@ -92,15 +92,15 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	}
 
 	function borrow(uint256 borrowAmount) external payable override returns (uint256) {
-		return filda.borrow(borrowAmount);
+		return flashLoan.borrow(borrowAmount);
 	}
 
 	function mint(uint256 mintAmount) external override returns (uint256) {
-		return filda.mint(mintAmount);
+		return flashLoan.mint(mintAmount);
 	}
 
 	function redeemUnderlying(uint256 redeemAmount) external override returns (uint256) {
-		return filda.redeemUnderlying(redeemAmount);
+		return flashLoan.redeemUnderlying(redeemAmount);
 	}
 
 	function repayBehalf(address who) external payable override returns (bool) {
@@ -125,8 +125,7 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	}
 
 	function claimComp(address owner) external override returns (bool) {
-		address[] memory args = new address[](1);
-		args[0] = cTokenAddress;
+		address[1] memory args = [cTokenAddress];
 		try comptroller.claimComp(owner, args) {
 			return true;
 		} catch {

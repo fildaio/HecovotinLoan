@@ -37,8 +37,12 @@ contract Wallet is AccessControl, Global {
 		_config = GlobalConfig(config);
 	}
 
+	function allowance() public view returns (uint256) {
+		return _config.HTT().allowance(_owner, address(_config.loanContract()));
+	}
+
 	function approve(uint256 amount) public returns (bool) {
-		return _config.HTT().approve(_config.HTTAddress(), amount);
+		return _config.HTT().approve(address(_config.loanContract()), amount);
 	}
 
 	function vote(uint256 pid) public payable {
@@ -114,11 +118,14 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function getPendingRewardFilda() public returns (uint256) {
-		return _config.loanContract().getCompBalanceWithAccrued(_owner);
+		return _config.loanContract().getCompBalanceWithAccrued(address(this));
 	}
 
-	function claimFilda() public returns (bool) {
-		return _config.loanContract().claimComp(_owner);
+	function claimFilda() public {
+		_isOwner();
+		require(_config.loanContract().claimComp(address(this)));
+		uint256 fildaBalance = _config.filda().balanceOf(address(this));
+		_config.filda().transfer(msg.sender, fildaBalance);
 	}
 
 	function revokeVote(uint256 pid, uint256 amount) public returns (bool success) {
