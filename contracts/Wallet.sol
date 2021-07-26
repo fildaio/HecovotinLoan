@@ -129,9 +129,8 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function revokeVote(uint256 pid, uint256 amount) public returns (bool success) {
-		require(_config.votingContract().revokeVote(pid, amount));
-		emit RevokeEvent(msg.sender, pid, amount);
-		return true;
+		_isOwner();
+		return _revokeVote(pid, amount);
 	}
 
 	function revokingInfo(uint256 pid)
@@ -281,13 +280,12 @@ contract Wallet is AccessControl, Global {
 		emit BurnHTTEvent(msg.sender, result);
 	}
 
-	// 撤回全部投票的全部量，只供清算时内部调用。
 	function _revokeAll() private returns (bool allDone) {
 		VotingData[] memory votingDatas = _config.votingContract().getUserVotingSummary(address(this));
 		if (votingDatas.length > 0) {
 			for (uint256 i = 0; i < votingDatas.length; i++) {
 				VotingData memory votedData = votingDatas[i];
-				bool success = revokeVote(votedData.pid, votedData.ballot);
+				bool success = _revokeVote(votedData.pid, votedData.ballot);
 				if (success == false) {
 					revert(); //"Failed to revoke one of votings"
 				}
@@ -325,5 +323,11 @@ contract Wallet is AccessControl, Global {
 
 	function _isOwner() private view {
 		require(msg.sender == _owner);
+	}
+
+	function _revokeVote(uint256 pid, uint256 amount) public returns (bool success) {
+		require(_config.votingContract().revokeVote(pid, amount));
+		emit RevokeEvent(msg.sender, pid, amount);
+		return true;
 	}
 }
