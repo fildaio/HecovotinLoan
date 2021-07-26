@@ -145,7 +145,7 @@ contract Wallet is AccessControl, Global {
 		return _config.votingContract().revokingInfo(address(this), pid);
 	}
 
-	function isWithdrawable(uint256 pid) public returns (bool) {
+	function isWithdrawable(uint256 pid) public view returns (bool) {
 		return _config.votingContract().isWithdrawable(address(this), pid);
 	}
 

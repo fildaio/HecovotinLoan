@@ -10,7 +10,7 @@ interface VotingStrategy is Global {
 
 	function revokeVote(uint256 pid, uint256 amount) external returns (bool);
 
-	function isWithdrawable(address user, uint256 pid) external returns (bool);
+	function isWithdrawable(address user, uint256 pid) external view returns (bool);
 
 	function withdraw(uint256 pid) external returns (bool);
 

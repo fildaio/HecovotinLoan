@@ -18,7 +18,7 @@ interface HecoNodeVoteInterface is Global {
 
 	function pendingReward(uint256 pid, address user) external returns (uint256);
 
-	function _isWithdrawable(address _user, uint256 _pid) external returns (bool);
+	function _isWithdrawable(address _user, uint256 _pid) external view returns (bool);
 
 	function getUserVotingSummary(address _user) external returns (VotingData[] memory);
 
@@ -81,7 +81,7 @@ contract HecoNodeVote is VotingStrategy, AccessControl {
 		return voting.revokingInfo(user, pid);
 	}
 
-	function isWithdrawable(address user, uint256 pid) external override returns (bool) {
+	function isWithdrawable(address user, uint256 pid) external view override returns (bool) {
 		return voting._isWithdrawable(user, pid);
 	}
 
