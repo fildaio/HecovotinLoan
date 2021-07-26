@@ -49,6 +49,6 @@ contract HTToken is ERC20, HTTokenInterface {
 	}
 
 	function _isWalletContract() private view {
-		require(_factory.getOwner(msg.sender) != address(0));
+		require(_factory.getOwner(msg.sender) != address(0), "no wallet");
 	}
 }

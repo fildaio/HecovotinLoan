@@ -44,7 +44,7 @@ contract HecoNodeVote is VotingStrategy, AccessControl {
 	}
 
 	function setVoting(address contractAddress) public {
-		require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not admin.");
+		require(hasRole(ADMIN_ROLE, msg.sender), "not admin.");
 		voting = HecoNodeVoteInterface(contractAddress);
 	}
 

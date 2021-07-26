@@ -52,7 +52,7 @@ contract Wallet is AccessControl, Global {
 		uint256 amount = msg.value;
 		uint256 minVoteAmount = _config.votingContract().VOTE_UNIT();
 
-		require(amount >= minVoteAmount);
+		require(amount >= minVoteAmount, "amount < min");
 
 		address payable caller = payable(msg.sender);
 
@@ -65,7 +65,7 @@ contract Wallet is AccessControl, Global {
 			caller.transfer(difference);
 		}
 
-		require(_config.votingContract().vote{ value: integerAmount }(pid));
+		require(_config.votingContract().vote{ value: integerAmount }(pid), "vote error");
 
 		uint256 oldBalance = _config.HTT().balanceOf(address(this));
 
@@ -73,12 +73,12 @@ contract Wallet is AccessControl, Global {
 
 		uint256 newBalance = _config.HTT().balanceOf(address(this));
 
-		require(newBalance.sub(oldBalance) == integerAmount);
+		require(newBalance.sub(oldBalance) == integerAmount, "the minted HTT amount wrong");
 
 		uint256 mintResult = _config.loanContract().mint(integerAmount);
 
 		// require(mintResult.mul(_exchangeRateStored()).div(_config.decimals()) == integerAmount);
-		require(mintResult == 0, "mint error");
+		require(mintResult == 0, "deposit error");
 
 		emit VoteEvent(caller, pid, integerAmount);
 	}
@@ -90,7 +90,7 @@ contract Wallet is AccessControl, Global {
 	function borrow(uint256 borrowAmount) public {
 		_isOwner();
 
-		require(borrowAmount > 0 && borrowAmount <= getBorrowLimit());
+		require(borrowAmount > 0 && borrowAmount <= getBorrowLimit(), "amount > limit");
 		require(_config.loanContract().borrow(borrowAmount) == 0, "Failed to borrow");
 
 		payable(msg.sender).transfer(borrowAmount);
@@ -104,7 +104,7 @@ contract Wallet is AccessControl, Global {
 		require(_config.votingContract().pendingReward(pid) > 0, "No rewards to claim");
 
 		uint256 oldBalance = address(this).balance;
-		require(_config.votingContract().claimReward(pid));
+		require(_config.votingContract().claimReward(pid), "claim HT error");
 
 		uint256 newBalance = address(this).balance;
 		uint256 rewardToClaim = newBalance.sub(oldBalance);
@@ -123,7 +123,7 @@ contract Wallet is AccessControl, Global {
 
 	function claimFilda() public {
 		_isOwner();
-		require(_config.loanContract().claimComp(address(this)));
+		require(_config.loanContract().claimComp(address(this)), "claim filda error");
 		uint256 fildaBalance = _config.filda().balanceOf(address(this));
 		_config.filda().transfer(msg.sender, fildaBalance);
 	}
@@ -181,11 +181,10 @@ contract Wallet is AccessControl, Global {
 
 	function repay() public payable {
 		uint256 repayAmount = msg.value;
-		require(repayAmount > 0);
-		require(repayAmount <= _config.loanContract().borrowBalanceCurrent(address(this)));
-		require(msg.sender.balance >= repayAmount);
-
-		require(_config.loanContract().repayBehalf{ value: msg.value }(address(this)));
+		require(repayAmount > 0, "amount == 0");
+		require(repayAmount <= _config.loanContract().borrowBalanceCurrent(address(this)), "amount <= borrowBalance");
+		require(msg.sender.balance >= repayAmount, "insufficient balance");
+		require(_config.loanContract().repayBehalf{ value: msg.value }(address(this)), "repay error");
 	}
 
 	function revokeAllVoting() public {
@@ -204,7 +203,7 @@ contract Wallet is AccessControl, Global {
 		uint256 borrowBalanceCurrentAmount = _config.loanContract().borrowBalanceCurrent(address(this));
 		uint256 savingBalance = _config.loanContract().getSavingBalance(address(this));
 		uint256 borrowed = borrowBalanceCurrentAmount.mul(_config.denominator()).div(savingBalance);
-		require(borrowed > _config.liquidateRate());
+		require(borrowed > _config.liquidateRate(), "borrowed < liquidete limit");
 
 		if (_haveAllVotesBeenRevoked() == false) {
 			// Step 1: revoke all votes.
@@ -212,7 +211,7 @@ contract Wallet is AccessControl, Global {
 			_firstLiquidater = msg.sender;
 		} else {
 			// Step 2: withdraw all.
-			require(msg.value >= borrowBalanceCurrentAmount);
+			require(msg.value >= borrowBalanceCurrentAmount, "insufficient amount");
 
 			uint256 total = _withdrawAllVoting(true);
 
@@ -258,10 +257,10 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function _withdrawOrRepay(uint256 pid, bool toRepay) private returns (uint256 withdrawal) {
-		require(isWithdrawable(pid) == true);
+		require(isWithdrawable(pid) == true, "pool cannot be withdraw");
 
 		uint256 oldBalance = address(this).balance;
-		require(_config.votingContract().withdraw(pid));
+		require(_config.votingContract().withdraw(pid), "withdraw error");
 		uint256 newBalance = address(this).balance;
 		withdrawal = newBalance.sub(oldBalance);
 
@@ -270,7 +269,7 @@ contract Wallet is AccessControl, Global {
 			uint256 repayAmount = borrowed.min(address(this).balance);
 
 			if (repayAmount > 0) {
-				require(_config.loanContract().repayBehalf{ value: repayAmount }(address(this)));
+				require(_config.loanContract().repayBehalf{ value: repayAmount }(address(this)), "repay error");
 				emit RepayEvent(msg.sender, pid, repayAmount);
 			}
 		}
@@ -327,11 +326,11 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function _isOwner() private view {
-		require(msg.sender == _owner);
+		require(msg.sender == _owner, "not owner");
 	}
 
 	function _revokeVote(uint256 pid, uint256 amount) public returns (bool success) {
-		require(_config.votingContract().revokeVote(pid, amount));
+		require(_config.votingContract().revokeVote(pid, amount), "revoke error");
 		emit RevokeEvent(msg.sender, pid, amount);
 		return true;
 	}
