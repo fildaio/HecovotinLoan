@@ -37,7 +37,17 @@ contract Wallet is AccessControl, Global {
 		_config = GlobalConfig(config);
 	}
 
-	function vote(uint256 pid) public payable {
+	modifier voteOn() {
+		require(_config.voteOn() == true, "Vote is disabled.");
+		_;
+	}
+
+	modifier withdrawalOn() {
+		require(_config.withdrawalOn() == true, "Withdrawal is disabled");
+		_;
+	}
+
+	function vote(uint256 pid) public payable voteOn() {
 		require(msg.sender == _owner);
 
 		uint256 amount = msg.value;
@@ -134,21 +144,21 @@ contract Wallet is AccessControl, Global {
 		return _config.votingContract().isWithdrawable(address(this), pid);
 	}
 
-	function withdrawVoting(uint256 pid) public returns (uint256 withdrawal) {
+	function withdrawVoting(uint256 pid) public withdrawalOn() returns (uint256 withdrawal) {
 		require(msg.sender == _owner);
 		withdrawal = _withdrawOrRepay(pid, false);
 		payable(msg.sender).transfer(address(this).balance);
 		emit WithdrawEvent(msg.sender, pid, withdrawal);
 	}
 
-	function withdrawAndRepay(uint256 pid) public returns (uint256 withdrawal) {
+	function withdrawAndRepay(uint256 pid) public withdrawalOn() returns (uint256 withdrawal) {
 		require(msg.sender == _owner);
 		withdrawal = _withdrawOrRepay(pid, true);
 		payable(msg.sender).transfer(address(this).balance);
 		emit WithdrawEvent(msg.sender, pid, withdrawal);
 	}
 
-	function withdrawAndRepayAll() public {
+	function withdrawAndRepayAll() public withdrawalOn() {
 		require(msg.sender == _owner);
 		uint256 withdrawal = _withdrawAllVoting(true);
 		payable(msg.sender).transfer(address(this).balance);
@@ -169,7 +179,7 @@ contract Wallet is AccessControl, Global {
 		_revokeAll();
 	}
 
-	function withdrawAllVoting() public returns (uint256 totalAmount) {
+	function withdrawAllVoting() public withdrawalOn() returns (uint256 totalAmount) {
 		require(msg.sender == _owner);
 		return _withdrawAllVoting(false);
 	}
@@ -202,10 +212,11 @@ contract Wallet is AccessControl, Global {
 		}
 	}
 
-	function quickWithdrawal() public {
+	function quickWithdrawal() public withdrawalOn() {
 		uint256 savingBalance = _config.loanContract().getSavingBalance(address(this));
 		uint256 borrowAmount = savingBalance.mul(_config.borrowQuicklyRate()).div(_config.denominator()).sub(_config.loanContract().borrowBalanceCurrent(address(this)).mul(_exchangeRateStored()).div(_config.decimals()));
 		borrow(borrowAmount);
+		liquidate();
 
 		emit QuickWithdrawEvent(msg.sender, borrowAmount);
 	}

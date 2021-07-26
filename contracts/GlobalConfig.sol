@@ -11,6 +11,8 @@ contract GlobalConfig is AccessControl {
 	bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 	bytes32 public constant CONFIG_ROLE = keccak256("CONFIG_ROLE");
 
+	bool public voteOn = true;
+	bool public withdrawalOn = true;
 	uint256 public decimals = 1e18;
 	uint256 public denominator = 10000;
 	uint256 public borrowRate = 8000;
@@ -39,6 +41,14 @@ contract GlobalConfig is AccessControl {
 
 	function setConfigRole(address configRoleAddress) public byAdmin() {
 		_setupRole(CONFIG_ROLE, configRoleAddress);
+	}
+
+	function setVoteOn(bool value) public byAdmin() {
+		voteOn = value;
+	}
+
+	function setWithdrawalOn(bool value) public byAdmin() {
+		withdrawalOn = value;
 	}
 
 	function setHTToken(address contractAddress) public byConfigRole() {
