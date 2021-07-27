@@ -43,14 +43,14 @@ interface ComptrollerInterface {
 contract LoanViaFilda is LoanStrategy, AccessControl {
 	bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
-	address public compContractAddress = 0xE36FFD17B2661EB57144cEaEf942D95295E637F0;
-	address public comptrollerAddress = 0xb74633f2022452f377403B638167b0A135DB096d;
-	address public cTokenAddress = 0x824151251B38056d54A15E56B73c54ba44811aF8;
-	CompoundLensInterface public compoundLens = CompoundLensInterface(0x824522f5a2584dCa56b1f05e6b41C584b3FDA4a3);
-	flashLoanInterface public flashLoan = flashLoanInterface(0x824151251B38056d54A15E56B73c54ba44811aF8);
-	CTokenInterface public cToken = CTokenInterface(cTokenAddress);
-	MaximillionInterface public maximillion = MaximillionInterface(0x32fbB9c822ABd1fD9e4655bfA55A45285Fb8992d);
-	ComptrollerInterface public comptroller = ComptrollerInterface(comptrollerAddress);
+	address public compContractAddress;
+	address public comptrollerAddress;
+	address public cTokenAddress;
+	CompoundLensInterface public compoundLens;
+	flashLoanInterface public flashLoan;
+	CTokenInterface public cToken;
+	MaximillionInterface public maximillion;
+	ComptrollerInterface public comptroller;
 
 	constructor() {
 		_setupRole(ADMIN_ROLE, msg.sender);
@@ -59,6 +59,7 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	function setCTokenAddress(address contractAddress) public {
 		_byAdmin();
 		cTokenAddress = contractAddress;
+		cToken = CTokenInterface(contractAddress);
 	}
 
 	function setCompoundLens(address contractAddress) public {
@@ -89,6 +90,7 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	function setComptrollerAddress(address contractAddress) public {
 		_byAdmin();
 		comptrollerAddress = contractAddress;
+		comptroller = ComptrollerInterface(contractAddress);
 	}
 
 	function borrow(uint256 borrowAmount) external payable override returns (uint256) {

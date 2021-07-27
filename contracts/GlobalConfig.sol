@@ -19,9 +19,9 @@ contract GlobalConfig is AccessControl {
 	uint256 public borrowQuicklyRate = 9700;
 	uint256 public liquidateRate = 9000;
 	uint256 public bonusRateForLiquidater = 300;
-	IERC20 public filda = IERC20(0xE36FFD17B2661EB57144cEaEf942D95295E637F0);
+	IERC20 public filda;
 	HTTokenInterface public HTT;
-	VotingStrategy public votingContract = VotingStrategy(0x80d1769ac6fee59BE5AAC1952a90270bbd2Ceb2F);
+	VotingStrategy public votingContract;
 	LoanStrategy public loanContract;
 
 	constructor() {
@@ -47,6 +47,11 @@ contract GlobalConfig is AccessControl {
 	function setHTToken(address contractAddress) public {
 		_byConfigRole();
 		HTT = HTTokenInterface(contractAddress);
+	}
+
+	function setFilda(address contractAddress) public {
+		_byConfigRole();
+		filda = IERC20(contractAddress);
 	}
 
 	function setVotingContract(address contractAddress) public {

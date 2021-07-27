@@ -37,7 +37,7 @@ interface HecoNodeVoteInterface is Global {
 contract HecoNodeVote is VotingStrategy, AccessControl {
 	bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
-	HecoNodeVoteInterface public voting = HecoNodeVoteInterface(0x80d1769ac6fee59BE5AAC1952a90270bbd2Ceb2F);
+	HecoNodeVoteInterface public voting;
 
 	constructor() {
 		_setupRole(ADMIN_ROLE, msg.sender);
