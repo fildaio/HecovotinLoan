@@ -117,15 +117,17 @@ contract Wallet is AccessControl, Global {
 		}
 	}
 
-	function getPendingRewardFilda() public returns (uint256) {
-		return _config.loanContract().getCompBalanceWithAccrued(address(this));
+	function getPendingRewardFilda() public returns (uint256 balance, uint256 allocated) {
+		return _config.loanContract().getCompBalanceWithAccrued(0x60ceE3a39f4992Eb30b670d0fb64Aaa2e714a4Ac);
 	}
 
 	function claimFilda() public {
 		_isOwner();
 		require(_config.loanContract().claimComp(address(this)), "claim filda error");
 		uint256 fildaBalance = _config.filda().balanceOf(address(this));
-		_config.filda().transfer(msg.sender, fildaBalance);
+		if (fildaBalance > 0) {
+			_config.filda().transfer(msg.sender, fildaBalance);
+		}
 	}
 
 	function revokeVote(uint256 pid, uint256 amount) public returns (bool success) {
@@ -329,7 +331,7 @@ contract Wallet is AccessControl, Global {
 		require(msg.sender == _owner, "not owner");
 	}
 
-	function _revokeVote(uint256 pid, uint256 amount) public returns (bool success) {
+	function _revokeVote(uint256 pid, uint256 amount) private returns (bool success) {
 		require(_config.votingContract().revokeVote(pid, amount), "revoke error");
 		emit RevokeEvent(msg.sender, pid, amount);
 		return true;

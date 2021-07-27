@@ -14,9 +14,9 @@ interface LoanStrategy is Global {
 
 	function borrowBalanceCurrent(address user) external returns (uint256);
 
-	function getSavingBalance(address owner) external returns (uint256);
+	function getSavingBalance(address owner) external view returns (uint256);
 
-	function getCompBalanceWithAccrued(address owner) external returns (uint256);
+	function getCompBalanceWithAccrued(address owner) external returns (uint256 balance, uint256 allocated);
 
 	function claimComp(address owner) external returns (bool);
 

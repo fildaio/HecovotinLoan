@@ -13,12 +13,12 @@ module.exports = async function (deployer, network, accounts) {
 	await deployer.deploy(LoanViaFilda);
 	const loanViaFildaInstance = await LoanViaFilda.deployed();
 	console.log("LoanViaFilda: ", LoanViaFilda.address);
-	loanViaFildaInstance.setCompContractAddress("0xE36FFD17B2661EB57144cEaEf942D95295E637F0");// for heco mainnet.
-	loanViaFildaInstance.setComptrollerAddress("0xb74633f2022452f377403B638167b0A135DB096d");// for heco mainnet.
-	loanViaFildaInstance.setCTokenAddress("0x824151251B38056d54A15E56B73c54ba44811aF8");// for heco mainnet.
-	loanViaFildaInstance.setCompoundLens("0x824522f5a2584dCa56b1f05e6b41C584b3FDA4a3");// for heco mainnet.
-	loanViaFildaInstance.setFlashLoan("0x824151251B38056d54A15E56B73c54ba44811aF8");// for heco mainnet.
-	loanViaFildaInstance.setMaximillion("0x32fbB9c822ABd1fD9e4655bfA55A45285Fb8992d");// for heco mainnet.
+	loanViaFildaInstance.setCompContractAddress("0x9d81f4554e717f7054c1bfbb2f7c323389b116a5");// for heco testnet.
+	loanViaFildaInstance.setComptrollerAddress("0xb74633f2022452f377403B638167b0A135DB096d");// for heco testnet.
+	loanViaFildaInstance.setCTokenAddress("0x824151251B38056d54A15E56B73c54ba44811aF8");// HT, for heco testnet.
+	loanViaFildaInstance.setCompoundLens("0x46F27679e96CABEcb6d20A0332F6Aab19685E733");// for heco testnet.
+	loanViaFildaInstance.setFlashLoan("0x824151251B38056d54A15E56B73c54ba44811aF8");// for heco testnet.
+	loanViaFildaInstance.setMaximillion("0x32fbB9c822ABd1fD9e4655bfA55A45285Fb8992d");// for heco testnet.
 
 	await deployer.deploy(HTToken, "100000000000000000000000000");
 	console.log("HTToken: ", HTToken.address);
@@ -29,7 +29,7 @@ module.exports = async function (deployer, network, accounts) {
 	globalConfigInstance.setVotingContract(HecoNodeVote.address);
 	globalConfigInstance.setLoanContract(LoanViaFilda.address);
 	globalConfigInstance.setHTToken(HTToken.address);
-	globalConfigInstance.setFilda("0xE36FFD17B2661EB57144cEaEf942D95295E637F0");//for heco mainnet.
+	globalConfigInstance.setFilda("0x9d81f4554e717f7054c1bfbb2f7c323389b116a5");//for heco testnet.
 
 	await deployer.deploy(WalletFactory)
 	console.log("WalletFactory: ", WalletFactory.address);

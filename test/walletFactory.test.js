@@ -1,36 +1,53 @@
+const { BN } = require("bn.js");
+
 const GlobalConfig = artifacts.require("GlobalConfig");
 const WalletFactory = artifacts.require("WalletFactory");
+const Wallet = artifacts.require("Wallet");
 
-contract("WalletFactory", accounts => {
-	let config;
-	let walletFactory;
+contract("WalletFactory and Wallet", async accounts => {
+	let instanceGlobalConfig;
+	let instanceWalletFactory;
+	let walletAddress = "";
+	let theWallet = null;
 
-	it("GlobalConfig", () => {
-		return GlobalConfig.deployed().then(instanceGlobalConfig => {
-			config = instanceGlobalConfig.address;
+	it("WalletFactory.makeWallet()", async () => {
+		instanceGlobalConfig = await GlobalConfig.deployed();
+		instanceWalletFactory = await WalletFactory.deployed();
+		await instanceWalletFactory.makeWallet(instanceGlobalConfig.address);
 
-			return WalletFactory.deployed();
-		}).then(instanceWalletFactory => {
-			walletFactory = instanceWalletFactory;
-			console.log("walletFactory: ", walletFactory.address);
+		walletAddress = await instanceWalletFactory.getWallet(accounts[0]);
+		console.log("walletAddress: ", walletAddress);
 
-			console.log("----------------------------------------")
-			console.log("walletFactory.makeWallet()…… args:", config);
-			return walletFactory.makeWallet(config);
-		}).then(_ => {
-			console.log("----------------------------------------")
-			console.log("walletFactory.getWallet()…… args:", accounts[0]);
-			return walletFactory.getWallet(accounts[0]);
-		}).then(result => {
-			console.log("walletFactory.getWallet() return:", result);
+		const owner = await instanceWalletFactory.getOwner(walletAddress);
+		console.log("owner: ", owner);
 
-			console.log("----------------------------------------")
-			console.log("walletFactory.getOwner() args:", result);
-			return walletFactory.getOwner(result);
-		}).then(owner => {
-			console.log("walletFactory.getOwner() return:", owner);
+		assert.equal(owner, accounts[0]);
+	});
 
-			assert.equal(owner, accounts[0], "Account <==> Wallet");
-		});
+	it("Wallet.allowance()", async () => {
+		theWallet = await Wallet.at(walletAddress);
+		assert.ok(theWallet);
+
+		const allowance = await theWallet.allowance();
+		assert.equal(allowance, 0);
+	});
+
+	it("Wallet.getBorrowLimit()", async () => {
+		const borrowLimit = await theWallet.getBorrowLimit.call();
+		const borrowLimitBN = new BN(borrowLimit);
+		assert.ok(borrowLimitBN.gte(0));
+	});
+
+	it("Wallet.getPendingRewardFilda()", async () => {
+		const pendingRewardFilda = await theWallet.getPendingRewardFilda.call();
+		const value = new BN(pendingRewardFilda.allocated);
+		assert.ok(value.gte(0));
+	});
+
+	it("Wallet.claimFilda()", async () => {
+		await theWallet.claimFilda();
+		const pendingRewardFilda = await theWallet.getPendingRewardFilda.call();
+		const value = new BN(pendingRewardFilda.allocated);
+		assert.ok(value.eq(0));
 	});
 });

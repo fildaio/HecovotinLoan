@@ -17,27 +17,52 @@ interface flashLoanInterface {
 }
 
 interface CTokenInterface {
+	function borrowIndex() external view returns (uint256);
+
+	function borrowBalanceStored(address account) external view returns (uint256);
+
 	function borrowBalanceCurrent(address account) external returns (uint256);
 
 	function balanceOfUnderlying(address owner) external returns (uint256);
 
 	function exchangeRateCurrent() external returns (uint256);
+
+	function balanceOf(address owner) external view returns (uint256);
 }
 
 interface MaximillionInterface {
 	function repayBehalf(address borrower) external payable;
 }
 
-interface CompoundLensInterface is Global {
-	function getCompBalanceWithAccrued(
-		address compContractAddress,
-		address comptrollerAddress,
-		address user
-	) external returns (CompBalance memory);
+interface CompInterface {
+	function balanceOf(address account) external view returns (uint256);
 }
 
 interface ComptrollerInterface {
-	function claimComp(address user, address[1] memory tokens) external;
+	// function markets(address) external view returns (bool, uint256);
+	// function oracle() external view returns (PriceOracle);
+	// function getAccountLiquidity(address)
+	// 	external
+	// 	view
+	// 	returns (
+	// 		uint256,
+	// 		uint256,
+	// 		uint256
+	// 	);
+	// function getAssetsIn(address) external view returns (CToken[] memory);
+	function claimComp(address) external;
+
+	function claimComp(address user, CTokenInterface[] memory tokens) external;
+
+	function compAccrued(address) external view returns (uint256);
+}
+
+interface CompoundLensInterface {
+	function getCompBalanceWithAccrued(
+		CompInterface comp,
+		ComptrollerInterface comptroller,
+		address account
+	) external returns (uint256 balance, uint256 allocated);
 }
 
 contract LoanViaFilda is LoanStrategy, AccessControl {
@@ -114,20 +139,22 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	}
 
 	function borrowBalanceCurrent(address user) external override returns (uint256) {
+		// return cToken.borrowBalanceStored(user);
 		return cToken.borrowBalanceCurrent(user);
 	}
 
-	function getSavingBalance(address owner) external override returns (uint256) {
-		return cToken.balanceOfUnderlying(owner);
+	function getSavingBalance(address owner) external view override returns (uint256) {
+		// return cToken.balanceOfUnderlying(owner);
+		return cToken.balanceOf(owner);
 	}
 
-	function getCompBalanceWithAccrued(address owner) external override returns (uint256) {
-		CompBalance memory compBalance = compoundLens.getCompBalanceWithAccrued(compContractAddress, comptrollerAddress, owner);
-		return compBalance.balance;
+	function getCompBalanceWithAccrued(address owner) external override returns (uint256 balance, uint256 allocated) {
+		return compoundLens.getCompBalanceWithAccrued(CompInterface(compContractAddress), ComptrollerInterface(comptrollerAddress), owner);
 	}
 
 	function claimComp(address owner) external override returns (bool) {
-		address[1] memory args = [cTokenAddress];
+		CTokenInterface[] memory args = new CTokenInterface[](1);
+		args[0] = cToken;
 		try comptroller.claimComp(owner, args) {
 			return true;
 		} catch {
