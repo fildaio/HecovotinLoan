@@ -48,7 +48,7 @@ module.exports = {
       network_id: "230",       // Any network (default: none)
     },
     hecotest: {
-      provider: () => new HDWalletProvider(mnemonic, "wss://ws-testnet.hecochain.com"),
+      provider: () => new HDWalletProvider(mnemonic, "wss://ws-testnet.huobichain.com"),//wss://ws-testnet.huobichain.com | https://http-testnet.huobichain.com | wss://ws-testnet.hecochain.com | https://http-testnet.hecochain.com
       network_id: 256,       // Ropsten's id
       // gas: 5500000,        // Ropsten has a lower block limit than mainnet
       // confirmations: 2,    // # of confs to wait between deployments. (default: 0)

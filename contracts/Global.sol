@@ -12,9 +12,4 @@ interface Global {
 		uint256 revokingBallot; // 正在撤回的投票数
 		uint256 revokeLockingEndTime; // 撤回投票的锁定时间
 	}
-
-	struct CompBalance {
-		uint256 allocated;
-		uint256 balance;
-	}
 }

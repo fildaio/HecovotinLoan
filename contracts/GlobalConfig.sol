@@ -3,9 +3,8 @@ pragma solidity >=0.4.22 <0.9.0;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./VotingStrategy.sol";
-import "./LoanStrategy.sol";
-import "./HTTokenInterface.sol";
+
+// import "./LoanStrategy.sol";
 
 contract GlobalConfig is AccessControl {
 	bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -20,9 +19,11 @@ contract GlobalConfig is AccessControl {
 	uint256 public liquidateRate = 9000;
 	uint256 public bonusRateForLiquidater = 300;
 	IERC20 public filda;
-	HTTokenInterface public HTT;
-	VotingStrategy public votingContract;
-	LoanStrategy public loanContract;
+	address public HTT;
+	address public votingContract;
+	address public loanContract;
+	address public depositContract;
+	address public borrowContract;
 
 	constructor() {
 		_setupRole(ADMIN_ROLE, msg.sender);
@@ -46,7 +47,7 @@ contract GlobalConfig is AccessControl {
 
 	function setHTToken(address contractAddress) public {
 		_byConfigRole();
-		HTT = HTTokenInterface(contractAddress);
+		HTT = contractAddress;
 	}
 
 	function setFilda(address contractAddress) public {
@@ -56,12 +57,22 @@ contract GlobalConfig is AccessControl {
 
 	function setVotingContract(address contractAddress) public {
 		_byConfigRole();
-		votingContract = VotingStrategy(contractAddress);
+		votingContract = contractAddress;
 	}
 
 	function setLoanContract(address contractAddress) public {
 		_byConfigRole();
-		loanContract = LoanStrategy(contractAddress);
+		loanContract = contractAddress;
+	}
+
+	function setDepositContract(address contractAddress) public {
+		_byConfigRole();
+		depositContract = contractAddress;
+	}
+
+	function setBorrowContract(address contractAddress) public {
+		_byConfigRole();
+		borrowContract = contractAddress;
 	}
 
 	function setHTTokenDecimals(uint256 value) public {

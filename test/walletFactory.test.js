@@ -1,4 +1,4 @@
-const { BN } = require("bn.js");
+const { default: BigNumber } = require("bignumber.js");
 
 const GlobalConfig = artifacts.require("GlobalConfig");
 const WalletFactory = artifacts.require("WalletFactory");
@@ -29,25 +29,175 @@ contract("WalletFactory and Wallet", async accounts => {
 		assert.ok(theWallet);
 
 		const allowance = await theWallet.allowance();
-		assert.equal(allowance, 0);
+		assert.equal(allowance, 0,);
 	});
 
-	it("Wallet.getBorrowLimit()", async () => {
-		const borrowLimit = await theWallet.getBorrowLimit.call();
-		const borrowLimitBN = new BN(borrowLimit);
-		assert.ok(borrowLimitBN.gte(0));
+	it("Wallet.approve()", async () => {
+		const done = await theWallet.approve(new BigNumber(2).pow(256).minus(1));
+		assert.ok(done);
+	});
+
+	it("Wallet.depositHTT()", async () => {
+		await theWallet.depositHTT("1000000000000000000");
+	});
+
+	it("Wallet.enterMarkets()", async () => {
+		const enterMarkets = await theWallet.enterMarkets.call();
+		const enterMarket = new BigNumber(enterMarkets[0])
+		assert.ok(enterMarket.eq(0));
 	});
 
 	it("Wallet.getPendingRewardFilda()", async () => {
 		const pendingRewardFilda = await theWallet.getPendingRewardFilda.call();
-		const value = new BN(pendingRewardFilda.allocated);
-		assert.ok(value.gte(0));
+		const value = new BigNumber(pendingRewardFilda.allocated);
+		assert.ok(value.gte(0), "pendingRewardFilda:" + value.toNumber());
 	});
 
 	it("Wallet.claimFilda()", async () => {
 		await theWallet.claimFilda();
-		const pendingRewardFilda = await theWallet.getPendingRewardFilda.call();
-		const value = new BN(pendingRewardFilda.allocated);
-		assert.ok(value.eq(0));
+
+		setTimeout(async () => {
+			const pendingRewardFilda = await theWallet.getPendingRewardFilda.call();
+			const value = new BigNumber(pendingRewardFilda.allocated);
+			console.log("pendingRewardFilda:", value.toNumber());
+			assert.ok(value.eq(0), "pendingRewardFilda:" + value.toNumber());
+		}, 15000);
+	});
+
+	it("Wallet.VOTE_UNIT()", async () => {
+		const unit = await theWallet.VOTE_UNIT.call();
+		const value = new BigNumber(unit);
+		assert.ok(value.gt(0));
+	});
+
+	it("Wallet.vote()", async () => {
+		const balance = await web3.eth.getBalance(accounts[0]);
+		const balanceBN = new BigNumber(balance);
+		const voteAmount = new BigNumber("1100000000000000000");
+		if (balanceBN.gt(voteAmount)) {
+			await theWallet.vote(17, {
+				from: accounts[0],
+				value: voteAmount.toString()
+			});
+
+			setTimeout(async () => {
+				const userVotingSummary = await theWallet.getUserVotingSummary.call();//0xe4a28e4c0A67BF36C22CC4A0F573B4256b697B3f for test...
+				assert.ok(typeof userVotingSummary === "object" && userVotingSummary.length >= 0 && userVotingSummary[0].pid && parseInt(userVotingSummary[0].pid) == 17);
+			}, 15000);
+		} else {
+			console.log("insufficient balance to vote.")
+			assert.ok(true);
+		}
+	});
+
+	it("Wallet.pendingReward()", async () => {
+		const pendingReward = await theWallet.pendingReward(17);
+		const pendingRewardBN = new BigNumber(pendingReward);
+		assert.ok(pendingRewardBN.comparedTo(0) >= 0);
+	});
+
+	it("Wallet.claim()", async () => {
+		let pendingReward = await theWallet.pendingReward(17);
+		let pendingRewardBN = new BigNumber(pendingReward);
+		if (pendingRewardBN.comparedTo(0) > 0) {
+			await theWallet.claim(17);
+
+			setTimeout(async () => {
+				pendingReward = await theWallet.pendingReward(17);
+				pendingRewardBN = new BigNumber(pendingReward);
+				assert.ok(pendingRewardBN.comparedTo(0) === 0);
+			}, 15000);
+		} else {
+			assert.ok(true);
+		}
+	});
+
+	if ("Wallet.getUserVotingSummary", async () => {
+		const userVotingSummary = await theWallet.getUserVotingSummary.call();//0xe4a28e4c0A67BF36C22CC4A0F573B4256b697B3f for test...
+		assert.ok(typeof userVotingSummary === "object" && userVotingSummary.length >= 0);
+	});
+
+	it("Wallet.revokeVote()", async () => {
+		const userVotingSummary = await theWallet.getUserVotingSummary.call();//0xe4a28e4c0A67BF36C22CC4A0F573B4256b697B3f for test...
+		if (typeof userVotingSummary === "object" && userVotingSummary.length >= 0 && userVotingSummary[0] && userVotingSummary[0].pid && parseInt(userVotingSummary[0].pid) == 17) {
+			const done = await theWallet.revokeVote(17, "1000000000000000000");
+			assert.ok(done);
+		} else {
+			console.log("no voting.")
+			assert.ok(true);
+		}
+	});
+
+	it("Wallet.getBorrowLimit()", async () => {
+		const borrowLimit = await theWallet.getBorrowLimit.call();
+		const borrowLimitBN = new BigNumber(borrowLimit);
+		assert.ok(borrowLimitBN.gte(0));
+	});
+
+	it("Wallet.borrow()", async () => {
+		const borrowAmount = 10000000;
+		const oldBalance = await web3.eth.getBalance(accounts[0]);
+		const oldBalanceBN = new BigNumber(oldBalance);
+		await theWallet.borrow(borrowAmount);
+		const newBalance = await web3.eth.getBalance(accounts[0]);
+		const newBalanceBN = new BigNumber(newBalance);
+		assert.ok(newBalanceBN.minus(oldBalanceBN).comparedTo(borrowAmount) === 0);
+	});
+
+	it("Wallet.revokingInfo()", async () => {
+		const revokingInfo = await theWallet.revokingInfo.call(17);
+		assert.ok(typeof revokingInfo === "object" && revokingInfo["0"]);
+	});
+
+	it("Wallet.isWithdrawable()", async () => {
+		const done = await theWallet.isWithdrawable.call(17);
+		assert.ok(done || !done);
+	});
+
+	it("Wallet.withdrawVoting()", async () => {
+		const withdrawable = await theWallet.isWithdrawable.call(17);
+		if (withdrawable) {
+			const withdrawal = await theWallet.withdrawVoting(17);
+			console.log("withdrawal:", withdrawal);
+		} else {
+			console.log("the Pool #17 is not withdrawable.");
+			assert.ok(true);
+		}
+	});
+
+	it("Wallet.withdrawAndRepay()", async () => {
+		const withdrawable = await theWallet.isWithdrawable.call(17);
+		if (withdrawable) {
+			const withdrawal = await theWallet.withdrawAndRepay(17);
+			console.log("withdrawal:", withdrawal);
+		} else {
+			console.log("the Pool #17 is not withdrawable.");
+			assert.ok(true);
+		}
+	});
+
+	it("Wallet.withdrawAndRepayAll()", async () => {
+		const userVotingSummary = await theWallet.getUserVotingSummary.call();
+		const allWithdrawable = true;
+		if (typeof userVotingSummary === "object" && userVotingSummary.length >= 0) {
+			for (i = 0; i < userVotingSummary.length; i++) {
+				const pid = userVotingSummary[0].pid;
+				const withdrawable = await theWallet.isWithdrawable.call(pid);
+				if (!withdrawable) {
+					allWithdrawable = false;
+					console.log("the pool #" + pid + " is not withdrawable");
+					break;
+				}
+			}
+		} else {
+			allWithdrawable = false;
+		}
+
+		if (allWithdrawable) {
+			await theWallet.withdrawAndRepayAll.call();
+		} else {
+			console.log("the pools are not withdrawable");
+			assert.ok(true);
+		}
 	});
 });

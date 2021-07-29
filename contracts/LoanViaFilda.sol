@@ -6,16 +6,6 @@ import "./LoanStrategy.sol";
 import "./HTToken.sol";
 import "./Global.sol";
 
-interface flashLoanInterface {
-	function mint(uint256 mintAmount) external returns (uint256);
-
-	function borrow(uint256 borrowAmount) external returns (uint256);
-
-	function redeemUnderlying(uint256 redeemAmount) external returns (uint256);
-
-	function repayBorrow(uint256 repayAmount) external returns (uint256);
-}
-
 interface CTokenInterface {
 	function borrowIndex() external view returns (uint256);
 
@@ -26,8 +16,6 @@ interface CTokenInterface {
 	function balanceOfUnderlying(address owner) external returns (uint256);
 
 	function exchangeRateCurrent() external returns (uint256);
-
-	function balanceOf(address owner) external view returns (uint256);
 }
 
 interface MaximillionInterface {
@@ -39,22 +27,13 @@ interface CompInterface {
 }
 
 interface ComptrollerInterface {
-	// function markets(address) external view returns (bool, uint256);
-	// function oracle() external view returns (PriceOracle);
-	// function getAccountLiquidity(address)
-	// 	external
-	// 	view
-	// 	returns (
-	// 		uint256,
-	// 		uint256,
-	// 		uint256
-	// 	);
-	// function getAssetsIn(address) external view returns (CToken[] memory);
 	function claimComp(address) external;
 
 	function claimComp(address user, CTokenInterface[] memory tokens) external;
 
 	function compAccrued(address) external view returns (uint256);
+
+	function enterMarkets(address[] memory cTokens) external returns (uint256[] memory);
 }
 
 interface CompoundLensInterface {
@@ -72,7 +51,7 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	address public comptrollerAddress;
 	address public cTokenAddress;
 	CompoundLensInterface public compoundLens;
-	flashLoanInterface public flashLoan;
+	// flashLoanInterface public flashLoan;
 	CTokenInterface public cToken;
 	MaximillionInterface public maximillion;
 	ComptrollerInterface public comptroller;
@@ -90,11 +69,6 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	function setCompoundLens(address contractAddress) public {
 		_byAdmin();
 		compoundLens = CompoundLensInterface(contractAddress);
-	}
-
-	function setFlashLoan(address contractAddress) public {
-		_byAdmin();
-		flashLoan = flashLoanInterface(contractAddress);
 	}
 
 	function setQToken(address contractAddress) public {
@@ -118,16 +92,10 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 		comptroller = ComptrollerInterface(contractAddress);
 	}
 
-	function borrow(uint256 borrowAmount) external payable override returns (uint256) {
-		return flashLoan.borrow(borrowAmount);
-	}
-
-	function mint(uint256 mintAmount) external override returns (uint256) {
-		return flashLoan.mint(mintAmount);
-	}
-
-	function redeemUnderlying(uint256 redeemAmount) external override returns (uint256) {
-		return flashLoan.redeemUnderlying(redeemAmount);
+	function enterMarkets(address depositToken) external override returns (uint256[] memory) {
+		address[] memory args = new address[](1);
+		args[0] = depositToken;
+		return comptroller.enterMarkets(args);
 	}
 
 	function repayBehalf(address who) external payable override returns (bool) {
@@ -141,11 +109,6 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	function borrowBalanceCurrent(address user) external override returns (uint256) {
 		// return cToken.borrowBalanceStored(user);
 		return cToken.borrowBalanceCurrent(user);
-	}
-
-	function getSavingBalance(address owner) external view override returns (uint256) {
-		// return cToken.balanceOfUnderlying(owner);
-		return cToken.balanceOf(owner);
 	}
 
 	function getCompBalanceWithAccrued(address owner) external override returns (uint256 balance, uint256 allocated) {

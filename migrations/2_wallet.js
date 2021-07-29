@@ -1,36 +1,39 @@
-const HecoNodeVote = artifacts.require("HecoNodeVote");
+const Config = require("./Config");
+
 const LoanViaFilda = artifacts.require("LoanViaFilda");
 const HTToken = artifacts.require("HTToken");
 const GlobalConfig = artifacts.require("GlobalConfig");
 const WalletFactory = artifacts.require("WalletFactory");
 
 module.exports = async function (deployer, network, accounts) {
-	await deployer.deploy(HecoNodeVote);
-	const hecoNodeVoteInstance = await HecoNodeVote.deployed();
-	console.log("HecoNodeVote: ", HecoNodeVote.address);
-	hecoNodeVoteInstance.setVoting("0x80d1769ac6fee59BE5AAC1952a90270bbd2Ceb2F");// for heco mainnet.
+	const theConfig = Config[network]
 
 	await deployer.deploy(LoanViaFilda);
 	const loanViaFildaInstance = await LoanViaFilda.deployed();
 	console.log("LoanViaFilda: ", LoanViaFilda.address);
-	loanViaFildaInstance.setCompContractAddress("0x9d81f4554e717f7054c1bfbb2f7c323389b116a5");// for heco testnet.
-	loanViaFildaInstance.setComptrollerAddress("0xb74633f2022452f377403B638167b0A135DB096d");// for heco testnet.
-	loanViaFildaInstance.setCTokenAddress("0x824151251B38056d54A15E56B73c54ba44811aF8");// HT, for heco testnet.
-	loanViaFildaInstance.setCompoundLens("0x46F27679e96CABEcb6d20A0332F6Aab19685E733");// for heco testnet.
-	loanViaFildaInstance.setFlashLoan("0x824151251B38056d54A15E56B73c54ba44811aF8");// for heco testnet.
-	loanViaFildaInstance.setMaximillion("0x32fbB9c822ABd1fD9e4655bfA55A45285Fb8992d");// for heco testnet.
+	loanViaFildaInstance.setCompContractAddress(theConfig.compContract);
+	loanViaFildaInstance.setMaximillion(theConfig.maximillion);
+	loanViaFildaInstance.setCompoundLens(theConfig.compoundLens);
+	loanViaFildaInstance.setComptrollerAddress(theConfig.comptroller);
+	loanViaFildaInstance.setCTokenAddress(theConfig.cToken);// HT, for heco testnet.
 
-	await deployer.deploy(HTToken, "100000000000000000000000000");
+	// const httInstance = await deployer.deploy(HTToken, "100000000000000000000000000");
+	const httInstance = await HTToken.at(theConfig.htt);
 	console.log("HTToken: ", HTToken.address);
 
 	await deployer.deploy(GlobalConfig);
 	const globalConfigInstance = await GlobalConfig.deployed();
 	console.log("GlobalConfig: ", GlobalConfig.address);
-	globalConfigInstance.setVotingContract(HecoNodeVote.address);
+	globalConfigInstance.setVotingContract(theConfig.vote);
 	globalConfigInstance.setLoanContract(LoanViaFilda.address);
-	globalConfigInstance.setHTToken(HTToken.address);
-	globalConfigInstance.setFilda("0x9d81f4554e717f7054c1bfbb2f7c323389b116a5");//for heco testnet.
+	globalConfigInstance.setDepositContract(theConfig.deposit);
+	globalConfigInstance.setBorrowContract(theConfig.borrow);
+	globalConfigInstance.setFilda(theConfig.filda);//for heco testnet.
+	// globalConfigInstance.setHTToken(HTToken.address);
+	globalConfigInstance.setHTToken(theConfig.htt);
 
 	await deployer.deploy(WalletFactory)
 	console.log("WalletFactory: ", WalletFactory.address);
+
+	httInstance.setFactory(WalletFactory.address);
 }

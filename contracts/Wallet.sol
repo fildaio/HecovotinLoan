@@ -3,8 +3,50 @@ pragma solidity >=0.4.22 <0.9.0;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./Global.sol";
 import "./GlobalConfig.sol";
+import "./HTTokenInterface.sol";
+import "./LoanStrategy.sol";
+
+interface HecoNodeVoteInterface is Global {
+	function vote(uint256 _pid) external payable;
+
+	function revokeVote(uint256 _pid, uint256 _amount) external;
+
+	function withdraw(uint256 _pid) external;
+
+	function claimReward(uint256 _pid) external;
+
+	function _isWithdrawable(address _user, uint256 _pid) external view returns (bool);
+
+	function pendingReward(uint256 _pid, address _user) external view returns (uint256);
+
+	function getUserVotingSummary(address _user) external view returns (VotingData[] memory);
+
+	function revokingInfo(address _user, uint256 _pid)
+		external
+		view
+		returns (
+			uint256,
+			uint8,
+			uint256
+		);
+
+	function VOTE_UNIT() external view returns (uint256);
+}
+
+interface BankInterface {
+	function mint(uint256 mintAmount) external returns (uint256);
+
+	function borrow(uint256 borrowAmount) external returns (uint256);
+
+	function redeemUnderlying(uint256 redeemAmount) external returns (uint256);
+
+	function repayBorrow(uint256 repayAmount) external returns (uint256);
+
+	function balanceOf(address owner) external view returns (uint256);
+}
 
 contract Wallet is AccessControl, Global {
 	using SafeMath for uint256;
@@ -12,10 +54,15 @@ contract Wallet is AccessControl, Global {
 
 	address private _owner;
 	address private _admin;
-	GlobalConfig private _config;
 	address internal _firstLiquidater;
 	address internal _secondLiquidater;
 	uint256 internal _exchangeRate = 1e18;
+	GlobalConfig private _config;
+	HecoNodeVoteInterface private _voting;
+	HTTokenInterface private _HTT;
+	LoanStrategy private _loanContract;
+	BankInterface private _borrowContract;
+	BankInterface private _depositContract;
 
 	event VoteEvent(address voter, uint256 pid, uint256 amount);
 	event BorrowEvent(address borrower, uint256 amount);
@@ -35,14 +82,23 @@ contract Wallet is AccessControl, Global {
 		_owner = owner;
 		_admin = admin;
 		_config = GlobalConfig(config);
+		_voting = HecoNodeVoteInterface(_config.votingContract());
+		_HTT = HTTokenInterface(_config.HTT());
+		_loanContract = LoanStrategy(_config.loanContract());
+		_depositContract = BankInterface(_config.depositContract());
+		_borrowContract = BankInterface(_config.borrowContract());
 	}
 
 	function allowance() public view returns (uint256) {
-		return _config.HTT().allowance(_owner, address(_config.loanContract()));
+		return _HTT.allowance(_owner, _config.loanContract());
 	}
 
 	function approve(uint256 amount) public returns (bool) {
-		return _config.HTT().approve(address(_config.loanContract()), amount);
+		return _HTT.approve(_config.depositContract(), amount);
+	}
+
+	function VOTE_UNIT() public view returns (uint256) {
+		return _voting.VOTE_UNIT();
 	}
 
 	function vote(uint256 pid) public payable {
@@ -50,7 +106,7 @@ contract Wallet is AccessControl, Global {
 		_isOwner();
 
 		uint256 amount = msg.value;
-		uint256 minVoteAmount = _config.votingContract().VOTE_UNIT();
+		uint256 minVoteAmount = VOTE_UNIT();
 
 		require(amount >= minVoteAmount, "amount < min");
 
@@ -65,65 +121,88 @@ contract Wallet is AccessControl, Global {
 			caller.transfer(difference);
 		}
 
-		require(_config.votingContract().vote{ value: integerAmount }(pid), "vote error");
+		try _voting.vote{ value: integerAmount }(pid) {
+			depositHTT(integerAmount);
+			emit VoteEvent(caller, pid, integerAmount);
+		} catch {
+			revert("vote error");
+		}
+	}
 
-		uint256 oldBalance = _config.HTT().balanceOf(address(this));
+	function enterMarkets() public returns (uint256[] memory) {
+		return _loanContract.enterMarkets(_config.depositContract());
+	}
 
-		require(_config.HTT().mint(integerAmount), "mint error");
+	function depositHTT(uint256 integerAmount) public {
+		_isOwner();
 
-		uint256 newBalance = _config.HTT().balanceOf(address(this));
+		uint256 oldBalance = _HTT.balanceOf(address(this));
+
+		require(_HTT.mint(integerAmount), "mint error");
+
+		uint256 newBalance = _HTT.balanceOf(address(this));
 
 		require(newBalance.sub(oldBalance) == integerAmount, "the minted HTT amount wrong");
+		require(_depositContract.mint(integerAmount) == 0, "deposit error");
+	}
 
-		uint256 mintResult = _config.loanContract().mint(integerAmount);
-
-		// require(mintResult.mul(_exchangeRateStored()).div(_config.decimals()) == integerAmount);
-		require(mintResult == 0, "deposit error");
-
-		emit VoteEvent(caller, pid, integerAmount);
+	function getUserVotingSummary() external view returns (VotingData[] memory) {
+		return _voting.getUserVotingSummary(address(this));
 	}
 
 	function getBorrowLimit() public returns (uint256) {
-		return _config.loanContract().getSavingBalance(address(this)).mul(_config.borrowRate()).div(_config.denominator()).sub(_config.loanContract().borrowBalanceCurrent(address(this))).div(_config.decimals());
+		return _depositContract.balanceOf(address(this)).mul(_config.borrowRate()).div(_config.denominator()).sub(_loanContract.borrowBalanceCurrent(address(this)));
 	}
 
 	function borrow(uint256 borrowAmount) public {
 		_isOwner();
 
 		require(borrowAmount > 0 && borrowAmount <= getBorrowLimit(), "amount > limit");
-		require(_config.loanContract().borrow(borrowAmount) == 0, "Failed to borrow");
+		// uint256 result = _borrowContract.borrow(borrowAmount);
+		// emit BorrowEvent(msg.sender, result);
+		require(_borrowContract.borrow(borrowAmount) == 0, "Failed to borrow");
 
 		payable(msg.sender).transfer(borrowAmount);
-
 		emit BorrowEvent(msg.sender, borrowAmount);
+	}
+
+	function getBalance() public view returns (uint256) {
+		return address(this).balance;
+	}
+
+	function pendingReward(uint256 pid) public view returns (uint256) {
+		return _voting.pendingReward(pid, address(this));
 	}
 
 	function claim(uint256 pid) public {
 		_isOwner();
 
-		require(_config.votingContract().pendingReward(pid) > 0, "No rewards to claim");
+		require(_voting.pendingReward(pid, address(this)) > 0, "No rewards to claim");
 
 		uint256 oldBalance = address(this).balance;
-		require(_config.votingContract().claimReward(pid), "claim HT error");
 
-		uint256 newBalance = address(this).balance;
-		uint256 rewardToClaim = newBalance.sub(oldBalance);
-		if (rewardToClaim > 0) {
-			payable(msg.sender).transfer(rewardToClaim);
+		try _voting.claimReward(pid) {
+			uint256 newBalance = address(this).balance;
+			uint256 rewardToClaim = newBalance.sub(oldBalance);
+			if (rewardToClaim > 0) {
+				payable(msg.sender).transfer(rewardToClaim);
 
-			emit ClaimEvent(msg.sender, pid, rewardToClaim);
-		} else {
-			revert(); //"Insufficient reward amount."
+				emit ClaimEvent(msg.sender, pid, rewardToClaim);
+			} else {
+				revert("Insufficient reward");
+			}
+		} catch {
+			revert("claim HT error");
 		}
 	}
 
 	function getPendingRewardFilda() public returns (uint256 balance, uint256 allocated) {
-		return _config.loanContract().getCompBalanceWithAccrued(0x60ceE3a39f4992Eb30b670d0fb64Aaa2e714a4Ac);
+		return _loanContract.getCompBalanceWithAccrued(address(this));
 	}
 
 	function claimFilda() public {
 		_isOwner();
-		require(_config.loanContract().claimComp(address(this)), "claim filda error");
+		require(_loanContract.claimComp(address(this)), "claim filda error");
 		uint256 fildaBalance = _config.filda().balanceOf(address(this));
 		if (fildaBalance > 0) {
 			_config.filda().transfer(msg.sender, fildaBalance);
@@ -144,11 +223,11 @@ contract Wallet is AccessControl, Global {
 			uint256
 		)
 	{
-		return _config.votingContract().revokingInfo(address(this), pid);
+		return _voting.revokingInfo(address(this), pid);
 	}
 
 	function isWithdrawable(uint256 pid) public view returns (bool) {
-		return _config.votingContract().isWithdrawable(address(this), pid);
+		return _voting._isWithdrawable(address(this), pid);
 	}
 
 	function withdrawVoting(uint256 pid) public returns (uint256 withdrawal) {
@@ -184,9 +263,9 @@ contract Wallet is AccessControl, Global {
 	function repay() public payable {
 		uint256 repayAmount = msg.value;
 		require(repayAmount > 0, "amount == 0");
-		require(repayAmount <= _config.loanContract().borrowBalanceCurrent(address(this)), "amount <= borrowBalance");
+		require(repayAmount <= _loanContract.borrowBalanceCurrent(address(this)), "amount <= borrowBalance");
 		require(msg.sender.balance >= repayAmount, "insufficient balance");
-		require(_config.loanContract().repayBehalf{ value: msg.value }(address(this)), "repay error");
+		require(_loanContract.repayBehalf{ value: msg.value }(address(this)), "repay error");
 	}
 
 	function revokeAllVoting() public {
@@ -202,8 +281,8 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function liquidate() public payable {
-		uint256 borrowBalanceCurrentAmount = _config.loanContract().borrowBalanceCurrent(address(this));
-		uint256 savingBalance = _config.loanContract().getSavingBalance(address(this));
+		uint256 borrowBalanceCurrentAmount = _loanContract.borrowBalanceCurrent(address(this));
+		uint256 savingBalance = _depositContract.balanceOf(address(this));
 		uint256 borrowed = borrowBalanceCurrentAmount.mul(_config.denominator()).div(savingBalance);
 		require(borrowed > _config.liquidateRate(), "borrowed < liquidete limit");
 
@@ -231,8 +310,8 @@ contract Wallet is AccessControl, Global {
 
 	function quickWithdrawal() public {
 		_withdrawalOn();
-		uint256 savingBalance = _config.loanContract().getSavingBalance(address(this));
-		uint256 borrowAmount = savingBalance.mul(_config.borrowQuicklyRate()).div(_config.denominator()).sub(_config.loanContract().borrowBalanceCurrent(address(this)).div(_config.decimals()));
+		uint256 savingBalance = _depositContract.balanceOf(address(this));
+		uint256 borrowAmount = savingBalance.mul(_config.borrowQuicklyRate()).div(_config.denominator()).sub(_loanContract.borrowBalanceCurrent(address(this)).div(_config.decimals()));
 		borrow(borrowAmount);
 		liquidate();
 
@@ -241,8 +320,8 @@ contract Wallet is AccessControl, Global {
 
 	// 检查已发起的撤回投票是否完成。
 	// 不存在已发起的撤回投票，以及有未完成的撤回投票，都会返回false。
-	function _haveAllVotesBeenRevoked() private returns (bool allDone) {
-		VotingData[] memory votingDatas = _config.votingContract().getUserVotingSummary(address(this));
+	function _haveAllVotesBeenRevoked() private view returns (bool allDone) {
+		VotingData[] memory votingDatas = _voting.getUserVotingSummary(address(this));
 		if (votingDatas.length > 0) {
 			for (uint256 i = 0; i < votingDatas.length; i++) {
 				VotingData memory votedData = votingDatas[i];
@@ -262,32 +341,37 @@ contract Wallet is AccessControl, Global {
 		require(isWithdrawable(pid) == true, "pool cannot be withdraw");
 
 		uint256 oldBalance = address(this).balance;
-		require(_config.votingContract().withdraw(pid), "withdraw error");
-		uint256 newBalance = address(this).balance;
-		withdrawal = newBalance.sub(oldBalance);
 
-		if (toRepay) {
-			uint256 borrowed = _config.loanContract().borrowBalanceCurrent(msg.sender);
-			uint256 repayAmount = borrowed.min(address(this).balance);
+		try _voting.withdraw(pid) {
+			uint256 newBalance = address(this).balance;
+			withdrawal = newBalance.sub(oldBalance);
 
-			if (repayAmount > 0) {
-				require(_config.loanContract().repayBehalf{ value: repayAmount }(address(this)), "repay error");
-				emit RepayEvent(msg.sender, pid, repayAmount);
+			if (toRepay) {
+				uint256 borrowed = _loanContract.borrowBalanceCurrent(msg.sender);
+				uint256 repayAmount = borrowed.min(address(this).balance);
+
+				if (repayAmount > 0) {
+					// require(_borrowContract.repayBorrow(repayAmount) == 0, "repay error");
+					require(_loanContract.repayBehalf{ value: repayAmount }(address(this)), "repay error");
+					emit RepayEvent(msg.sender, pid, repayAmount);
+				}
 			}
+
+			oldBalance = _HTT.balanceOf(address(this));
+			_depositContract.redeemUnderlying(withdrawal);
+			newBalance = _HTT.balanceOf(address(this));
+
+			require(newBalance.sub(oldBalance) == withdrawal, "Incorrect withdrawal amount");
+			require(_HTT.burn(withdrawal), "burn error");
+
+			emit BurnHTTEvent(msg.sender, withdrawal);
+		} catch {
+			revert("withdraw error");
 		}
-
-		oldBalance = _config.HTT().balanceOf(address(this));
-		_config.loanContract().redeemUnderlying(withdrawal);
-		newBalance = _config.HTT().balanceOf(address(this));
-
-		require(newBalance.sub(oldBalance) == withdrawal, "Incorrect withdrawal amount");
-		require(_config.HTT().burn(withdrawal), "burn error");
-
-		emit BurnHTTEvent(msg.sender, withdrawal);
 	}
 
 	function _revokeAll() private returns (bool allDone) {
-		VotingData[] memory votingDatas = _config.votingContract().getUserVotingSummary(address(this));
+		VotingData[] memory votingDatas = _voting.getUserVotingSummary(address(this));
 		if (votingDatas.length > 0) {
 			for (uint256 i = 0; i < votingDatas.length; i++) {
 				VotingData memory votedData = votingDatas[i];
@@ -301,7 +385,7 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function _withdrawAllVoting(bool toRepay) private returns (uint256 totalAmount) {
-		VotingData[] memory votingDatas = _config.votingContract().getUserVotingSummary(address(this));
+		VotingData[] memory votingDatas = _voting.getUserVotingSummary(address(this));
 		if (votingDatas.length > 0) {
 			for (uint256 i = 0; i < votingDatas.length; i++) {
 				VotingData memory votedData = votingDatas[i];
@@ -312,7 +396,7 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function _exchangeRateStored() private returns (uint256) {
-		uint256 result = _config.loanContract().exchangeRateCurrent();
+		uint256 result = _loanContract.exchangeRateCurrent();
 		if (result > 0) {
 			_exchangeRate = result;
 		}
@@ -332,8 +416,11 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function _revokeVote(uint256 pid, uint256 amount) private returns (bool success) {
-		require(_config.votingContract().revokeVote(pid, amount), "revoke error");
-		emit RevokeEvent(msg.sender, pid, amount);
-		return true;
+		try _voting.revokeVote(pid, amount) {
+			emit RevokeEvent(msg.sender, pid, amount);
+			return true;
+		} catch {
+			revert("revoke error");
+		}
 	}
 }
