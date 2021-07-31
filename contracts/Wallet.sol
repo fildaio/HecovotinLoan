@@ -93,6 +93,8 @@ contract Wallet is AccessControl, Global {
 		_comptrollerContract = ComptrollerInterface(_config.comptrollerContract());
 	}
 
+	receive() external payable {}
+
 	function allowance() public view returns (uint256) {
 		return _HTT.allowance(_owner, _config.loanContract());
 	}
@@ -167,8 +169,6 @@ contract Wallet is AccessControl, Global {
 		_isOwner();
 
 		require(borrowAmount > 0 && borrowAmount <= getBorrowLimit(), "amount > limit");
-		// uint256 result = _borrowContract.borrow(borrowAmount);
-		// emit BorrowEvent(msg.sender, result);
 		require(_borrowContract.borrow(borrowAmount) == 0, "Failed to borrow");
 
 		payable(msg.sender).transfer(borrowAmount);
