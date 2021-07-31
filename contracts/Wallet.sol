@@ -8,6 +8,7 @@ import "./Global.sol";
 import "./GlobalConfig.sol";
 import "./HTTokenInterface.sol";
 import "./LoanStrategy.sol";
+import "./ComptrollerInterface.sol";
 
 interface HecoNodeVoteInterface is Global {
 	function vote(uint256 _pid) external payable;
@@ -63,6 +64,7 @@ contract Wallet is AccessControl, Global {
 	LoanStrategy private _loanContract;
 	BankInterface private _borrowContract;
 	BankInterface private _depositContract;
+	ComptrollerInterface private _comptrollerContract;
 
 	event VoteEvent(address voter, uint256 pid, uint256 amount);
 	event BorrowEvent(address borrower, uint256 amount);
@@ -73,6 +75,7 @@ contract Wallet is AccessControl, Global {
 	event RevokeEvent(address voter, uint256 pid, uint256 amount);
 	event LiquidateEvent(address voter, uint256 amount);
 	event RepayEvent(address voter, uint256 pid, uint256 amount);
+	event EnterMarkets(address caller, address market);
 
 	constructor(
 		address owner,
@@ -87,6 +90,7 @@ contract Wallet is AccessControl, Global {
 		_loanContract = LoanStrategy(_config.loanContract());
 		_depositContract = BankInterface(_config.depositContract());
 		_borrowContract = BankInterface(_config.borrowContract());
+		_comptrollerContract = ComptrollerInterface(_config.comptrollerContract());
 	}
 
 	function allowance() public view returns (uint256) {
@@ -130,7 +134,10 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function enterMarkets() public returns (uint256[] memory) {
-		return _loanContract.enterMarkets(_config.depositContract());
+		address[] memory args = new address[](1);
+		args[0] = _config.depositContract();
+		emit EnterMarkets(address(this), _config.depositContract());
+		return _comptrollerContract.enterMarkets(args);
 	}
 
 	function depositHTT(uint256 integerAmount) public {
@@ -158,12 +165,12 @@ contract Wallet is AccessControl, Global {
 		_isOwner();
 
 		require(borrowAmount > 0 && borrowAmount <= getBorrowLimit(), "amount > limit");
-		// uint256 result = _borrowContract.borrow(borrowAmount);
-		// emit BorrowEvent(msg.sender, result);
-		require(_borrowContract.borrow(borrowAmount) == 0, "Failed to borrow");
+		uint256 result = _borrowContract.borrow(borrowAmount);
+		emit BorrowEvent(msg.sender, result);
+		// require(_borrowContract.borrow(borrowAmount) == 0, "Failed to borrow");
 
-		payable(msg.sender).transfer(borrowAmount);
-		emit BorrowEvent(msg.sender, borrowAmount);
+		// payable(msg.sender).transfer(borrowAmount);
+		// emit BorrowEvent(msg.sender, borrowAmount);
 	}
 
 	function getBalance() public view returns (uint256) {

@@ -13,6 +13,4 @@ interface LoanStrategy is Global {
 	function claimComp(address owner) external returns (bool);
 
 	function exchangeRateCurrent() external returns (uint256);
-
-	function enterMarkets(address depositToken) external returns (uint256[] memory);
 }

@@ -24,6 +24,7 @@ contract GlobalConfig is AccessControl {
 	address public loanContract;
 	address public depositContract;
 	address public borrowContract;
+	address public comptrollerContract;
 
 	constructor() {
 		_setupRole(ADMIN_ROLE, msg.sender);
@@ -73,6 +74,11 @@ contract GlobalConfig is AccessControl {
 	function setBorrowContract(address contractAddress) public {
 		_byConfigRole();
 		borrowContract = contractAddress;
+	}
+
+	function setComptrollerContract(address contractAddress) public {
+		_byConfigRole();
+		comptrollerContract = contractAddress;
 	}
 
 	function setHTTokenDecimals(uint256 value) public {

@@ -28,7 +28,8 @@ module.exports = async function (deployer, network, accounts) {
 	globalConfigInstance.setLoanContract(LoanViaFilda.address);
 	globalConfigInstance.setDepositContract(theConfig.deposit);
 	globalConfigInstance.setBorrowContract(theConfig.borrow);
-	globalConfigInstance.setFilda(theConfig.filda);//for heco testnet.
+	globalConfigInstance.setFilda(theConfig.filda);
+	globalConfigInstance.setComptrollerContract(theConfig.comptroller);
 	// globalConfigInstance.setHTToken(HTToken.address);
 	globalConfigInstance.setHTToken(theConfig.htt);
 

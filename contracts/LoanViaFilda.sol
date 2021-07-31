@@ -5,18 +5,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./LoanStrategy.sol";
 import "./HTToken.sol";
 import "./Global.sol";
-
-interface CTokenInterface {
-	function borrowIndex() external view returns (uint256);
-
-	function borrowBalanceStored(address account) external view returns (uint256);
-
-	function borrowBalanceCurrent(address account) external returns (uint256);
-
-	function balanceOfUnderlying(address owner) external returns (uint256);
-
-	function exchangeRateCurrent() external returns (uint256);
-}
+import "./ComptrollerInterface.sol";
 
 interface MaximillionInterface {
 	function repayBehalf(address borrower) external payable;
@@ -24,16 +13,6 @@ interface MaximillionInterface {
 
 interface CompInterface {
 	function balanceOf(address account) external view returns (uint256);
-}
-
-interface ComptrollerInterface {
-	function claimComp(address) external;
-
-	function claimComp(address user, CTokenInterface[] memory tokens) external;
-
-	function compAccrued(address) external view returns (uint256);
-
-	function enterMarkets(address[] memory cTokens) external returns (uint256[] memory);
 }
 
 interface CompoundLensInterface {
@@ -90,12 +69,6 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 		_byAdmin();
 		comptrollerAddress = contractAddress;
 		comptroller = ComptrollerInterface(contractAddress);
-	}
-
-	function enterMarkets(address depositToken) external override returns (uint256[] memory) {
-		address[] memory args = new address[](1);
-		args[0] = depositToken;
-		return comptroller.enterMarkets(args);
 	}
 
 	function repayBehalf(address who) external payable override returns (bool) {
