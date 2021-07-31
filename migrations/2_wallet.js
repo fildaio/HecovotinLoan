@@ -30,6 +30,7 @@ module.exports = async function (deployer, network, accounts) {
 	globalConfigInstance.setBorrowContract(theConfig.borrow);
 	globalConfigInstance.setFilda(theConfig.filda);
 	globalConfigInstance.setComptrollerContract(theConfig.comptroller);
+	globalConfigInstance.setCTokenContract(theConfig.cToken);
 	// globalConfigInstance.setHTToken(HTToken.address);
 	globalConfigInstance.setHTToken(theConfig.htt);
 

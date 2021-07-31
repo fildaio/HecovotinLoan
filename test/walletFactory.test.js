@@ -42,9 +42,12 @@ contract("WalletFactory and Wallet", async accounts => {
 	});
 
 	it("Wallet.enterMarkets()", async () => {
-		const enterMarkets = await theWallet.enterMarkets.call();
-		const enterMarket = new BigNumber(enterMarkets[0])
-		assert.ok(enterMarket.eq(0));
+		const enterMarkets = await theWallet.enterMarkets(["0xd5bC49328ff7c50F5B725887CD22f08587fA32Eb"]);
+	});
+
+	it("Wallet.checkMembership()", async () => {
+		const checkMembership = await theWallet.checkMembership.call();
+		assert.ok(checkMembership, "checkMembership() == false");
 	});
 
 	it("Wallet.getPendingRewardFilda()", async () => {
@@ -135,13 +138,13 @@ contract("WalletFactory and Wallet", async accounts => {
 	});
 
 	it("Wallet.borrow()", async () => {
-		const borrowAmount = 10000000;
+		const borrowAmount = "100000000000000000";
 		const oldBalance = await web3.eth.getBalance(accounts[0]);
 		const oldBalanceBN = new BigNumber(oldBalance);
 		await theWallet.borrow(borrowAmount);
 		const newBalance = await web3.eth.getBalance(accounts[0]);
 		const newBalanceBN = new BigNumber(newBalance);
-		assert.ok(newBalanceBN.minus(oldBalanceBN).comparedTo(borrowAmount) === 0);
+		assert.ok(newBalanceBN.minus(oldBalanceBN).comparedTo(borrowAmount) === 0, "failed to borrow()");
 	});
 
 	it("Wallet.revokingInfo()", async () => {
@@ -194,7 +197,7 @@ contract("WalletFactory and Wallet", async accounts => {
 		}
 
 		if (allWithdrawable) {
-			await theWallet.withdrawAndRepayAll.call();
+			await theWallet.withdrawAndRepayAll();
 		} else {
 			console.log("the pools are not withdrawable");
 			assert.ok(true);

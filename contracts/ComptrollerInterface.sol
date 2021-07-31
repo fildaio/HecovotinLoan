@@ -21,4 +21,6 @@ interface ComptrollerInterface {
 	function compAccrued(address) external view returns (uint256);
 
 	function enterMarkets(address[] memory cTokens) external returns (uint256[] memory);
+
+	function checkMembership(address account, CTokenInterface cToken) external view returns (bool);
 }

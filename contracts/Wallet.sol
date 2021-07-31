@@ -133,11 +133,13 @@ contract Wallet is AccessControl, Global {
 		}
 	}
 
-	function enterMarkets() public returns (uint256[] memory) {
-		address[] memory args = new address[](1);
-		args[0] = _config.depositContract();
+	function enterMarkets(address[] memory args) public returns (uint256[] memory result) {
+		result = _comptrollerContract.enterMarkets(args);
 		emit EnterMarkets(address(this), _config.depositContract());
-		return _comptrollerContract.enterMarkets(args);
+	}
+
+	function checkMembership() public view returns (bool) {
+		return _comptrollerContract.checkMembership(address(this), CTokenInterface(_config.depositContract()));
 	}
 
 	function depositHTT(uint256 integerAmount) public {
@@ -165,12 +167,12 @@ contract Wallet is AccessControl, Global {
 		_isOwner();
 
 		require(borrowAmount > 0 && borrowAmount <= getBorrowLimit(), "amount > limit");
-		uint256 result = _borrowContract.borrow(borrowAmount);
-		emit BorrowEvent(msg.sender, result);
-		// require(_borrowContract.borrow(borrowAmount) == 0, "Failed to borrow");
+		// uint256 result = _borrowContract.borrow(borrowAmount);
+		// emit BorrowEvent(msg.sender, result);
+		require(_borrowContract.borrow(borrowAmount) == 0, "Failed to borrow");
 
-		// payable(msg.sender).transfer(borrowAmount);
-		// emit BorrowEvent(msg.sender, borrowAmount);
+		payable(msg.sender).transfer(borrowAmount);
+		emit BorrowEvent(msg.sender, borrowAmount);
 	}
 
 	function getBalance() public view returns (uint256) {
