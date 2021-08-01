@@ -7,10 +7,6 @@ import "./HTToken.sol";
 import "./Global.sol";
 import "./ComptrollerInterface.sol";
 
-interface MaximillionInterface {
-	function repayBehalf(address borrower) external payable;
-}
-
 interface CompInterface {
 	function balanceOf(address account) external view returns (uint256);
 }
@@ -30,9 +26,7 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 	address public comptrollerAddress;
 	address public cTokenAddress;
 	CompoundLensInterface public compoundLens;
-	// flashLoanInterface public flashLoan;
 	CTokenInterface public cToken;
-	MaximillionInterface public maximillion;
 	ComptrollerInterface public comptroller;
 
 	constructor() {
@@ -55,11 +49,6 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 		cToken = CTokenInterface(contractAddress);
 	}
 
-	function setMaximillion(address contractAddress) public {
-		_byAdmin();
-		maximillion = MaximillionInterface(contractAddress);
-	}
-
 	function setCompContractAddress(address contractAddress) public {
 		_byAdmin();
 		compContractAddress = contractAddress;
@@ -69,14 +58,6 @@ contract LoanViaFilda is LoanStrategy, AccessControl {
 		_byAdmin();
 		comptrollerAddress = contractAddress;
 		comptroller = ComptrollerInterface(contractAddress);
-	}
-
-	function repayBehalf(address who) external payable override returns (bool) {
-		try maximillion.repayBehalf{ value: msg.value }(who) {
-			return true;
-		} catch {
-			return false;
-		}
 	}
 
 	function borrowBalanceCurrent(address user) external override returns (uint256) {

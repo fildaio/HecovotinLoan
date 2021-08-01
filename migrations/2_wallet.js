@@ -12,7 +12,6 @@ module.exports = async function (deployer, network, accounts) {
 	const loanViaFildaInstance = await LoanViaFilda.deployed();
 	console.log("LoanViaFilda: ", LoanViaFilda.address);
 	loanViaFildaInstance.setCompContractAddress(theConfig.compContract);
-	loanViaFildaInstance.setMaximillion(theConfig.maximillion);
 	loanViaFildaInstance.setCompoundLens(theConfig.compoundLens);
 	loanViaFildaInstance.setComptrollerAddress(theConfig.comptroller);
 	loanViaFildaInstance.setCTokenAddress(theConfig.cToken);// HT, for heco testnet.

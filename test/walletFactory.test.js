@@ -58,13 +58,10 @@ contract("WalletFactory and Wallet", async accounts => {
 
 	it("Wallet.claimFilda()", async () => {
 		await theWallet.claimFilda();
-
-		setTimeout(async () => {
-			const pendingRewardFilda = await theWallet.getPendingRewardFilda.call();
-			const value = new BigNumber(pendingRewardFilda.allocated);
-			console.log("pendingRewardFilda:", value.toNumber());
-			assert.ok(value.eq(0), "pendingRewardFilda:" + value.toNumber());
-		}, 15000);
+		const pendingRewardFilda = await theWallet.getPendingRewardFilda.call();
+		const value = new BigNumber(pendingRewardFilda.allocated);
+		console.log("pendingRewardFilda:", value.toNumber());
+		assert.ok(value.eq(0), "pendingRewardFilda:" + value.toNumber());
 	});
 
 	it("Wallet.VOTE_UNIT()", async () => {
@@ -197,5 +194,12 @@ contract("WalletFactory and Wallet", async accounts => {
 			console.log("the pools are not withdrawable");
 			assert.ok(true);
 		}
+	});
+
+	it("Wallet.repay()", async () => {
+		await theWallet.repay({
+			from: accounts[0],
+			value: "10000000000000000"
+		});
 	});
 });

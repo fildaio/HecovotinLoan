@@ -44,7 +44,7 @@ interface BankInterface {
 
 	function redeemUnderlying(uint256 redeemAmount) external returns (uint256);
 
-	function repayBorrow(uint256 repayAmount) external returns (uint256);
+	function repayBorrow() external payable;
 
 	function balanceOf(address owner) external view returns (uint256);
 }
@@ -74,7 +74,8 @@ contract Wallet is AccessControl, Global {
 	event QuickWithdrawEvent(address voter, uint256 amount);
 	event RevokeEvent(address voter, uint256 pid, uint256 amount);
 	event LiquidateEvent(address voter, uint256 amount);
-	event RepayEvent(address voter, uint256 pid, uint256 amount);
+	event RepayVotingPoolEvent(address voter, uint256 pid, uint256 amount);
+	event RepayEvent(address caller, uint256 amount);
 	event EnterMarkets(address caller, address market);
 
 	constructor(
@@ -274,7 +275,11 @@ contract Wallet is AccessControl, Global {
 		require(repayAmount > 0, "amount == 0");
 		require(repayAmount <= _loanContract.borrowBalanceCurrent(address(this)), "amount <= borrowBalance");
 		require(msg.sender.balance >= repayAmount, "insufficient balance");
-		require(_loanContract.repayBehalf{ value: msg.value }(address(this)), "repay error");
+		try _borrowContract.repayBorrow{ value: repayAmount }() {
+			emit RepayEvent(msg.sender, repayAmount);
+		} catch {
+			revert("repay error");
+		}
 	}
 
 	function revokeAllVoting() public {
@@ -360,9 +365,11 @@ contract Wallet is AccessControl, Global {
 				uint256 repayAmount = borrowed.min(address(this).balance);
 
 				if (repayAmount > 0) {
-					// require(_borrowContract.repayBorrow(repayAmount) == 0, "repay error");
-					require(_loanContract.repayBehalf{ value: repayAmount }(address(this)), "repay error");
-					emit RepayEvent(msg.sender, pid, repayAmount);
+					try _borrowContract.repayBorrow{ value: repayAmount }() {
+						emit RepayVotingPoolEvent(msg.sender, pid, repayAmount);
+					} catch {
+						revert("repay error");
+					}
 				}
 			}
 
