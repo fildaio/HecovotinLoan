@@ -337,7 +337,7 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function _withdrawOrRepay(uint256 pid, bool toRepay) private returns (uint256 withdrawal) {
-		require(isWithdrawable(pid) == true, "pool cannot be withdraw");
+		require(isWithdrawable(pid), "the pool cannot be withdraw");
 
 		uint256 oldBalance = address(this).balance;
 

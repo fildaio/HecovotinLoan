@@ -32,19 +32,6 @@ contract("WalletFactory and Wallet", async accounts => {
 		assert.equal(allowance, 0,);
 	});
 
-	// it("Wallet.approve()", async () => {
-	// 	const done = await theWallet.approve(new BigNumber(2).pow(256).minus(1));
-	// 	assert.ok(done);
-	// });
-
-	it("Wallet.depositHTT()", async () => {
-		await theWallet.depositHTT("1000000000000000000");
-	});
-
-	// it("Wallet.enterMarkets()", async () => {
-	// 	const enterMarkets = await theWallet.enterMarkets(["0xd5bC49328ff7c50F5B725887CD22f08587fA32Eb"]);
-	// });
-
 	it("Wallet.checkMembership()", async () => {
 		const checkMembership = await theWallet.checkMembership.call();
 		assert.ok(checkMembership, "checkMembership() == false");
@@ -71,25 +58,29 @@ contract("WalletFactory and Wallet", async accounts => {
 		assert.ok(value.gt(0));
 	});
 
-	// it("Wallet.vote()", async () => {
-	// 	const balance = await web3.eth.getBalance(accounts[0]);
-	// 	const balanceBN = new BigNumber(balance);
-	// 	const voteAmount = new BigNumber("1100000000000000000");
-	// 	if (balanceBN.gt(voteAmount)) {
-	// 		await theWallet.vote(17, {
-	// 			from: accounts[0],
-	// 			value: voteAmount.toString()
-	// 		});
+	it("Wallet.vote()", async () => {
+		const balance = await web3.eth.getBalance(accounts[0]);
+		const balanceBN = new BigNumber(balance);
+		const voteAmount = new BigNumber("1100000000000000000");
+		if (balanceBN.gt(voteAmount)) {
+			await theWallet.vote(17, {
+				from: accounts[0],
+				value: voteAmount.toString()
+			});
 
-	// 		setTimeout(async () => {
-	// 			const userVotingSummary = await theWallet.getUserVotingSummary.call();//0xe4a28e4c0A67BF36C22CC4A0F573B4256b697B3f for test...
-	// 			assert.ok(typeof userVotingSummary === "object" && userVotingSummary.length >= 0 && userVotingSummary[0].pid && parseInt(userVotingSummary[0].pid) == 17);
-	// 		}, 15000);
-	// 	} else {
-	// 		console.log("insufficient balance to vote.")
-	// 		assert.ok(true);
-	// 	}
-	// });
+			setTimeout(async () => {
+				const userVotingSummary = await theWallet.getUserVotingSummary.call();
+				assert.ok(typeof userVotingSummary === "object" && userVotingSummary.length >= 0 && userVotingSummary[0] && userVotingSummary[0].pid && parseInt(userVotingSummary[0].pid) == 17);
+			}, 15000);
+		} else {
+			console.log("insufficient balance to vote.")
+			assert.ok(true);
+		}
+	});
+
+	it("Wallet.depositHTT()", async () => {
+		await theWallet.depositHTT("1000000000000000000");
+	});
 
 	it("Wallet.pendingReward()", async () => {
 		const pendingReward = await theWallet.pendingReward(17);
@@ -147,7 +138,7 @@ contract("WalletFactory and Wallet", async accounts => {
 
 	it("Wallet.isWithdrawable()", async () => {
 		const done = await theWallet.isWithdrawable.call(17);
-		assert.ok(done || !done);
+		console.log("the pool #17 isWithdrawable:", done);
 	});
 
 	it("Wallet.withdrawVoting()", async () => {
