@@ -92,16 +92,16 @@ contract Wallet is AccessControl, Global {
 		_depositContract = BankInterface(_config.depositContract());
 		_borrowContract = BankInterface(_config.borrowContract());
 		_comptrollerContract = ComptrollerInterface(_config.comptrollerContract());
+
+		address[] memory args = new address[](1);
+		args[0] = _config.depositContract();
+		_enterMarkets(args);
 	}
 
 	receive() external payable {}
 
 	function allowance() public view returns (uint256) {
 		return _HTT.allowance(_owner, _config.loanContract());
-	}
-
-	function approve(uint256 amount) public returns (bool) {
-		return _HTT.approve(_config.depositContract(), amount);
 	}
 
 	function VOTE_UNIT() public view returns (uint256) {
@@ -128,17 +128,9 @@ contract Wallet is AccessControl, Global {
 			caller.transfer(difference);
 		}
 
-		try _voting.vote{ value: integerAmount }(pid) {
-			depositHTT(integerAmount);
-			emit VoteEvent(caller, pid, integerAmount);
-		} catch {
-			revert("vote error");
-		}
-	}
-
-	function enterMarkets(address[] memory args) public returns (uint256[] memory result) {
-		result = _comptrollerContract.enterMarkets(args);
-		emit EnterMarkets(address(this), _config.depositContract());
+		_voting.vote{ value: integerAmount }(pid);
+		depositHTT(integerAmount);
+		emit VoteEvent(caller, pid, integerAmount);
 	}
 
 	function checkMembership() public view returns (bool) {
@@ -147,6 +139,8 @@ contract Wallet is AccessControl, Global {
 
 	function depositHTT(uint256 integerAmount) public {
 		_isOwner();
+
+		require(_approve(integerAmount));
 
 		uint256 oldBalance = _HTT.balanceOf(address(this));
 
@@ -191,19 +185,12 @@ contract Wallet is AccessControl, Global {
 
 		uint256 oldBalance = address(this).balance;
 
-		try _voting.claimReward(pid) {
-			uint256 newBalance = address(this).balance;
-			uint256 rewardToClaim = newBalance.sub(oldBalance);
-			if (rewardToClaim > 0) {
-				payable(msg.sender).transfer(rewardToClaim);
-
-				emit ClaimEvent(msg.sender, pid, rewardToClaim);
-			} else {
-				revert("Insufficient reward");
-			}
-		} catch {
-			revert("claim HT error");
-		}
+		_voting.claimReward(pid);
+		uint256 newBalance = address(this).balance;
+		uint256 rewardToClaim = newBalance.sub(oldBalance);
+		require(rewardToClaim > 0, "pendingRewards == 0");
+		payable(msg.sender).transfer(rewardToClaim);
+		emit ClaimEvent(msg.sender, pid, rewardToClaim);
 	}
 
 	function getPendingRewardFilda() public returns (uint256 balance, uint256 allocated) {
@@ -270,16 +257,14 @@ contract Wallet is AccessControl, Global {
 		emit WithdrawEvent(msg.sender, 99999, withdrawal);
 	}
 
+	//　单元测试专用，要去掉。
 	function repay() public payable {
 		uint256 repayAmount = msg.value;
 		require(repayAmount > 0, "amount == 0");
 		require(repayAmount <= _loanContract.borrowBalanceCurrent(address(this)), "amount <= borrowBalance");
 		require(msg.sender.balance >= repayAmount, "insufficient balance");
-		try _borrowContract.repayBorrow{ value: repayAmount }() {
-			emit RepayEvent(msg.sender, repayAmount);
-		} catch {
-			revert("repay error");
-		}
+		_borrowContract.repayBorrow{ value: repayAmount }();
+		emit RepayEvent(msg.sender, repayAmount);
 	}
 
 	function revokeAllVoting() public {
@@ -356,34 +341,28 @@ contract Wallet is AccessControl, Global {
 
 		uint256 oldBalance = address(this).balance;
 
-		try _voting.withdraw(pid) {
-			uint256 newBalance = address(this).balance;
-			withdrawal = newBalance.sub(oldBalance);
+		_voting.withdraw(pid);
+		uint256 newBalance = address(this).balance;
+		withdrawal = newBalance.sub(oldBalance);
 
-			if (toRepay) {
-				uint256 borrowed = _loanContract.borrowBalanceCurrent(msg.sender);
-				uint256 repayAmount = borrowed.min(address(this).balance);
+		if (toRepay) {
+			uint256 borrowed = _loanContract.borrowBalanceCurrent(msg.sender);
+			uint256 repayAmount = borrowed.min(address(this).balance);
 
-				if (repayAmount > 0) {
-					try _borrowContract.repayBorrow{ value: repayAmount }() {
-						emit RepayVotingPoolEvent(msg.sender, pid, repayAmount);
-					} catch {
-						revert("repay error");
-					}
-				}
+			if (repayAmount > 0) {
+				_borrowContract.repayBorrow{ value: repayAmount }();
+				emit RepayVotingPoolEvent(msg.sender, pid, repayAmount);
 			}
-
-			oldBalance = _HTT.balanceOf(address(this));
-			_depositContract.redeemUnderlying(withdrawal);
-			newBalance = _HTT.balanceOf(address(this));
-
-			require(newBalance.sub(oldBalance) == withdrawal, "Incorrect withdrawal amount");
-			require(_HTT.burn(withdrawal), "burn error");
-
-			emit BurnHTTEvent(msg.sender, withdrawal);
-		} catch {
-			revert("withdraw error");
 		}
+
+		oldBalance = _HTT.balanceOf(address(this));
+		_depositContract.redeemUnderlying(withdrawal);
+		newBalance = _HTT.balanceOf(address(this));
+
+		require(newBalance.sub(oldBalance) == withdrawal, "Incorrect withdrawal amount");
+		require(_HTT.burn(withdrawal), "burn error");
+
+		emit BurnHTTEvent(msg.sender, withdrawal);
 	}
 
 	function _revokeAll() private returns (bool allDone) {
@@ -391,10 +370,7 @@ contract Wallet is AccessControl, Global {
 		if (votingDatas.length > 0) {
 			for (uint256 i = 0; i < votingDatas.length; i++) {
 				VotingData memory votedData = votingDatas[i];
-				bool success = _revokeVote(votedData.pid, votedData.ballot);
-				if (success == false) {
-					revert(); //"Failed to revoke one of votings"
-				}
+				require(_revokeVote(votedData.pid, votedData.ballot), "");
 				allDone = true;
 			}
 		}
@@ -432,11 +408,17 @@ contract Wallet is AccessControl, Global {
 	}
 
 	function _revokeVote(uint256 pid, uint256 amount) private returns (bool success) {
-		try _voting.revokeVote(pid, amount) {
-			emit RevokeEvent(msg.sender, pid, amount);
-			return true;
-		} catch {
-			revert("revoke error");
-		}
+		_voting.revokeVote(pid, amount);
+		emit RevokeEvent(msg.sender, pid, amount);
+		return true;
+	}
+
+	function _enterMarkets(address[] memory args) private returns (uint256[] memory result) {
+		result = _comptrollerContract.enterMarkets(args);
+		emit EnterMarkets(address(this), _config.depositContract());
+	}
+
+	function _approve(uint256 amount) private returns (bool) {
+		return _HTT.approve(_config.depositContract(), amount);
 	}
 }
