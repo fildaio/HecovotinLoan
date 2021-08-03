@@ -18,6 +18,7 @@ contract GlobalConfig is AccessControl {
 	uint256 public borrowQuicklyRate = 9700;
 	uint256 public liquidateRate = 9000;
 	uint256 public bonusRateForLiquidater = 300;
+	uint256 public withdrawLockPeriod = 86400;
 	IERC20 public filda;
 	address public HTT;
 	address public votingContract;
@@ -115,6 +116,11 @@ contract GlobalConfig is AccessControl {
 	function setBonusRateForLiquidater(uint256 value) public {
 		_byConfigRole();
 		bonusRateForLiquidater = value;
+	}
+
+	function setWithdrawLockPeriod(uint256 value) public {
+		_byConfigRole();
+		withdrawLockPeriod = value;
 	}
 
 	function _byAdmin() private view {

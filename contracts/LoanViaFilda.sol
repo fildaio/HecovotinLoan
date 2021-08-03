@@ -4,7 +4,6 @@ pragma solidity >=0.4.22 <0.9.0;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./LoanStrategy.sol";
 import "./HTToken.sol";
-import "./Global.sol";
 import "./ComptrollerInterface.sol";
 
 interface CompInterface {
