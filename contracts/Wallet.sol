@@ -287,16 +287,16 @@ contract Wallet is AccessControl {
 				_borrowContract.repayBorrow{ value: repayAmount }();
 				emit RepayVotingPoolEvent(msg.sender, validator, repayAmount);
 			}
+
+			oldBalance = _HTT.balanceOf(address(this));
+			_depositContract.redeemUnderlying(withdrawal);
+			newBalance = _HTT.balanceOf(address(this));
+
+			require(newBalance.sub(oldBalance) == withdrawal, "Incorrect withdrawal amount");
+			require(_HTT.burn(withdrawal), "burn error");
+
+			emit BurnHTTEvent(msg.sender, withdrawal);
 		}
-
-		oldBalance = _HTT.balanceOf(address(this));
-		_depositContract.redeemUnderlying(withdrawal);
-		newBalance = _HTT.balanceOf(address(this));
-
-		require(newBalance.sub(oldBalance) == withdrawal, "Incorrect withdrawal amount");
-		require(_HTT.burn(withdrawal), "burn error");
-
-		emit BurnHTTEvent(msg.sender, withdrawal);
 	}
 
 	function _withdrawAllVoting(address[] memory validators, bool toRepay) private returns (uint256 totalAmount) {
