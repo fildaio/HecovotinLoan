@@ -6,6 +6,8 @@ const Wallet = artifacts.require("Wallet");
 
 contract("WalletFactory and Wallet", async accounts => {
 	const validator = "0xd36a0Ad934a1fc5BFaEf73c3678410e446a468C3";
+	const depositAmount = 123456789;
+	const borrowAmount = 12345678;
 
 	let instanceGlobalConfig;
 	let instanceWalletFactory;
@@ -56,7 +58,7 @@ contract("WalletFactory and Wallet", async accounts => {
 	it("Wallet.vote()", async () => {
 		const balance = await web3.eth.getBalance(accounts[0]);
 		const balanceBN = new BigNumber(balance);
-		const voteAmount = new BigNumber("123456789");
+		const voteAmount = new BigNumber(depositAmount);
 		if (balanceBN.gt(voteAmount)) {
 			await theWallet.vote(validator, {
 				from: accounts[0],
@@ -65,16 +67,12 @@ contract("WalletFactory and Wallet", async accounts => {
 
 			setTimeout(async () => {
 				const userVotingSummary = await theWallet.getUserVotingSummary.call(validator);
-				assert.ok(new BigNumber(userVotingSummary.amount).gte(123456789));
+				assert.ok(new BigNumber(userVotingSummary.amount).gte(depositAmount));
 			}, 5000);
 		} else {
 			console.log("insufficient balance to vote.")
 			assert.ok(true);
 		}
-	});
-
-	it("Wallet.depositHTT()", async () => {
-		await theWallet.depositHTT("1000000000000000000");
 	});
 
 	it("Wallet.pendingReward()", async () => {
@@ -88,15 +86,11 @@ contract("WalletFactory and Wallet", async accounts => {
 		console.log("userVotingSummary:", userVotingSummary);
 	});
 
-	it("Wallet.revokeVote()", async () => {
-		const userVotingSummary = await theWallet.getUserVotingSummary.call(validator);
-		if (userVotingSummary[0] && userVotingSummary[0] >= 123456789) {
-			const done = await theWallet.revokeVote(validator, "123456789");
-			assert.ok(done);
-		} else {
-			console.log("no voting.")
-			assert.ok(true);
-		}
+	it("Wallet.getExchangeRate()", async () => {
+		const exchangeRate = await theWallet.getExchangeRate.call();
+		const exchangeRateBN = new BigNumber(exchangeRate).shiftedBy(18);
+		console.log("exchangeRate:", exchangeRateBN.toNumber());
+		assert.ok(exchangeRateBN.gte(0));
 	});
 
 	it("Wallet.getBorrowLimit()", async () => {
@@ -107,29 +101,48 @@ contract("WalletFactory and Wallet", async accounts => {
 	});
 
 	it("Wallet.borrow()", async () => {
-		const borrowAmount = "123456789";
 		await theWallet.borrow(borrowAmount);
 	});
 
-	it("Wallet.withdrawVoting()", async () => {
-		const withdrawable = await theWallet.getUserVotingSummary.call(validator);
-		if (new BigNumber(withdrawable.withdrawPendingAmount).comparedTo(123456789) >= 0) {
-			await theWallet.withdrawVoting(validator);
+	it("Wallet.repay()", async () => {
+		await theWallet.repay({
+			from: accounts[0],
+			value: borrowAmount
+		});
+	});
+
+	it("Wallet.revokeVote()", async () => {
+		const userVotingSummary = await theWallet.getUserVotingSummary.call(validator);
+		if (userVotingSummary[0] && userVotingSummary[0] >= depositAmount) {
+			const done = await theWallet.revokeVote(validator, depositAmount);
+			assert.ok(done);
 		} else {
-			console.log("the Pool is not withdrawable.");
+			console.log("no voting.")
 			assert.ok(true);
 		}
 	});
 
-	it("Wallet.withdrawAndRepay()", async () => {
-		const withdrawable = await theWallet.getUserVotingSummary.call(validator);
-		if (new BigNumber(withdrawable.withdrawPendingAmount).comparedTo(123456789) >= 0) {
-			await theWallet.withdrawAndRepay(validator);
-		} else {
-			console.log("the Pool is not withdrawable.");
-			assert.ok(true);
-		}
-	});
+	// it("Wallet.withdrawVoting()", async () => {
+	// 	const withdrawable = await theWallet.getUserVotingSummary.call(validator);
+	// 	const currentBlock = await web3.eth.getBlock("latest");
+	// 	if (new BigNumber(withdrawable.withdrawPendingAmount).comparedTo(depositAmount) >= 0 && (currentBlock.number - withdrawable.withdrawExitBlock) > 86400) {
+	// 		await theWallet.withdrawVoting(validator);
+	// 	} else {
+	// 		console.log("the Pool is not withdrawable.");
+	// 		assert.ok(true);
+	// 	}
+	// });
+
+	// it("Wallet.withdrawAndRepay()", async () => {
+	// 	const withdrawable = await theWallet.getUserVotingSummary.call(validator);
+	// 	const currentBlock = await web3.eth.getBlock("latest");
+	// 	if (new BigNumber(withdrawable.withdrawPendingAmount).comparedTo(depositAmount) >= 0 && (currentBlock.number - withdrawable.withdrawExitBlock) > 86400) {
+	// 		await theWallet.withdrawAndRepay(validator);
+	// 	} else {
+	// 		console.log("the Pool is not withdrawable.");
+	// 		assert.ok(true);
+	// 	}
+	// });
 
 	// it("Wallet.withdrawAndRepayAll()", async () => {
 	// 	const userVotingSummary = await theWallet.getUserVotingSummary.call();
@@ -155,11 +168,4 @@ contract("WalletFactory and Wallet", async accounts => {
 	// 		assert.ok(true);
 	// 	}
 	// });
-
-	it("Wallet.repay()", async () => {
-		await theWallet.repay({
-			from: accounts[0],
-			value: "123456789"
-		});
-	});
 });

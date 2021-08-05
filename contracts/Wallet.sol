@@ -49,9 +49,7 @@ contract Wallet is AccessControl {
 	address private _admin;
 	address internal _firstLiquidater;
 	address internal _secondLiquidater;
-	uint256 internal _exchangeRate = 1e18;
 	GlobalConfig private _config;
-	HecoNodeVoteInterface private _voting;
 	HTTokenInterface private _HTT;
 	LoanStrategy private _loanContract;
 	BankInterface private _borrowContract;
@@ -99,43 +97,23 @@ contract Wallet is AccessControl {
 		_voteOn();
 		_isOwner();
 
-		_voting = HecoNodeVoteInterface(validator);
+		HecoNodeVoteInterface voting = HecoNodeVoteInterface(validator);
 
 		uint256 amount = msg.value;
 		require(amount > 0, "amount == 0");
 
-		address payable caller = payable(msg.sender);
-		uint256 difference = amount.sub(amount);
-		if (difference > 0) {
-			caller.transfer(difference);
-		}
-
-		_voting.deposit{ value: amount }();
-		depositHTT(amount);
-		emit VoteEvent(caller, amount);
+		voting.deposit{ value: amount }();
+		_depositHTT(amount);
+		emit VoteEvent(payable(msg.sender), amount);
 	}
 
 	function checkMembership() public view returns (bool) {
 		return _comptrollerContract.checkMembership(address(this), CTokenInterface(_config.depositContract()));
 	}
 
-	function depositHTT(uint256 integerAmount) public {
-		_isOwner();
-
-		require(_approve(integerAmount));
-
-		uint256 oldBalance = _HTT.balanceOf(address(this));
-
-		require(_HTT.mint(integerAmount), "mint error");
-
-		uint256 newBalance = _HTT.balanceOf(address(this));
-
-		require(newBalance.sub(oldBalance) == integerAmount, "the minted HTT amount wrong");
-		require(_depositContract.mint(integerAmount) == 0, "deposit error");
-	}
-
 	function getUserVotingSummary(address validator)
 		external
+		view
 		returns (
 			uint256 amount,
 			uint256 rewardDebt,
@@ -143,12 +121,16 @@ contract Wallet is AccessControl {
 			uint256 withdrawExitBlock
 		)
 	{
-		_voting = HecoNodeVoteInterface(validator);
-		return _voting.voters(address(this));
+		HecoNodeVoteInterface voting = HecoNodeVoteInterface(validator);
+		return voting.voters(address(this));
+	}
+
+	function getExchangeRate() public returns (uint256) {
+		return _exchangeRateStored();
 	}
 
 	function getBorrowLimit() public returns (uint256) {
-		return _depositContract.balanceOf(address(this)).mul(_config.borrowRate()).div(_config.denominator()).sub(_loanContract.borrowBalanceCurrent(address(this)));
+		return _getBorrowableAmount().mul(_config.borrowRate()).div(_config.denominator()).sub(_loanContract.borrowBalanceCurrent(address(this)));
 	}
 
 	function borrow(uint256 borrowAmount) public {
@@ -165,9 +147,9 @@ contract Wallet is AccessControl {
 		return address(this).balance;
 	}
 
-	function pendingReward(address validator) public returns (uint256) {
-		_voting = HecoNodeVoteInterface(validator);
-		return _voting.getPendingReward(address(this));
+	function pendingReward(address validator) public view returns (uint256) {
+		HecoNodeVoteInterface voting = HecoNodeVoteInterface(validator);
+		return voting.getPendingReward(address(this));
 	}
 
 	function getPendingRewardFilda() public returns (uint256 balance, uint256 allocated) {
@@ -237,7 +219,7 @@ contract Wallet is AccessControl {
 
 	function liquidate(address[] memory validators) public payable {
 		uint256 borrowBalanceCurrentAmount = _loanContract.borrowBalanceCurrent(address(this));
-		uint256 savingBalance = _depositContract.balanceOf(address(this));
+		uint256 savingBalance = _getBorrowableAmount();
 		uint256 borrowed = borrowBalanceCurrentAmount.mul(_config.denominator()).div(savingBalance);
 		require(borrowed > _config.liquidateRate(), "borrowed < liquidete limit");
 
@@ -272,7 +254,7 @@ contract Wallet is AccessControl {
 
 	function quickWithdrawal(address[] memory validators) public {
 		_withdrawalOn();
-		uint256 savingBalance = _depositContract.balanceOf(address(this));
+		uint256 savingBalance = _getBorrowableAmount();
 		uint256 borrowAmount = savingBalance.mul(_config.borrowQuicklyRate()).div(_config.denominator()).sub(_loanContract.borrowBalanceCurrent(address(this)).div(_config.decimals()));
 		borrow(borrowAmount);
 		liquidate(validators);
@@ -280,7 +262,7 @@ contract Wallet is AccessControl {
 		emit QuickWithdrawEvent(msg.sender, borrowAmount);
 	}
 
-	function _haveAllVotesBeenRevoked(address[] memory validators) private returns (bool allDone) {
+	function _haveAllVotesBeenRevoked(address[] memory validators) private view returns (bool allDone) {
 		uint256 withdrawExitBlock;
 		for (uint8 i = 0; i < validators.length; i++) {
 			(, , , withdrawExitBlock) = this.getUserVotingSummary(validators[i]);
@@ -292,8 +274,8 @@ contract Wallet is AccessControl {
 
 	function _withdrawOrRepay(address validator, bool toRepay) private returns (uint256 withdrawal) {
 		uint256 oldBalance = address(this).balance;
-		_voting = HecoNodeVoteInterface(validator);
-		_voting.withdraw();
+		HecoNodeVoteInterface voting = HecoNodeVoteInterface(validator);
+		voting.withdraw();
 		uint256 newBalance = address(this).balance;
 		withdrawal = newBalance.sub(oldBalance);
 
@@ -329,11 +311,7 @@ contract Wallet is AccessControl {
 	}
 
 	function _exchangeRateStored() private returns (uint256) {
-		uint256 result = _loanContract.exchangeRateCurrent();
-		if (result > 0) {
-			_exchangeRate = result;
-		}
-		return _exchangeRate;
+		return _loanContract.exchangeRateCurrent();
 	}
 
 	function _voteOn() private view {
@@ -349,8 +327,8 @@ contract Wallet is AccessControl {
 	}
 
 	function _revokeVote(address validator, uint256 amount) private returns (bool success) {
-		_voting = HecoNodeVoteInterface(validator);
-		_voting.exitVote(amount);
+		HecoNodeVoteInterface voting = HecoNodeVoteInterface(validator);
+		voting.exitVote(amount);
 		emit RevokeEvent(msg.sender, validator, amount);
 		return true;
 	}
@@ -362,5 +340,24 @@ contract Wallet is AccessControl {
 
 	function _approve(uint256 amount) private returns (bool) {
 		return _HTT.approve(_config.depositContract(), amount);
+	}
+
+	function _depositHTT(uint256 integerAmount) private {
+		_isOwner();
+
+		require(_approve(integerAmount));
+
+		uint256 oldBalance = _HTT.balanceOf(address(this));
+
+		require(_HTT.mint(integerAmount), "mint error");
+
+		uint256 newBalance = _HTT.balanceOf(address(this));
+
+		require(newBalance.sub(oldBalance) == integerAmount, "the minted HTT amount wrong");
+		require(_depositContract.mint(integerAmount) == 0, "deposit error");
+	}
+
+	function _getBorrowableAmount() private returns (uint256) {
+		return _depositContract.balanceOf(address(this)).mul(getExchangeRate()).div(1e18);
 	}
 }

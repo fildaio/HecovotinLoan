@@ -7,6 +7,4 @@ interface HTTokenInterface is IERC20 {
 	function mint(uint256 amount) external returns (bool);
 
 	function burn(uint256 amount) external returns (bool);
-
-	function transferTo(address recipient, uint256 amount) external returns (bool);
 }

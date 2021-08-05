@@ -16,7 +16,7 @@ module.exports = async function (deployer, network, accounts) {
 	loanViaFildaInstance.setComptrollerAddress(theConfig.comptroller);
 	loanViaFildaInstance.setCTokenAddress(theConfig.cToken);// HT, for heco testnet.
 
-	// const httInstance = await deployer.deploy(HTToken, "100000000000000000000000000");
+	// const httInstance = await deployer.deploy(HTToken);
 	const httInstance = await HTToken.at(theConfig.htt);
 	console.log("HTToken: ", HTToken.address);
 

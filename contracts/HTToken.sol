@@ -14,10 +14,8 @@ contract HTToken is ERC20, HTTokenInterface, AccessControl {
 
 	WalletFactoryInterface private _factory;
 
-	constructor(uint256 initialSupply) ERC20("HT Token", "HTT") {
+	constructor() ERC20("HT Token", "HTT") {
 		_setupRole(ADMIN_ROLE, msg.sender);
-
-		_mint(msg.sender, initialSupply);
 	}
 
 	function setFactory(address factory) public {
@@ -47,11 +45,6 @@ contract HTToken is ERC20, HTTokenInterface, AccessControl {
 		} else {
 			return false;
 		}
-	}
-
-	function transferTo(address recipient, uint256 amount) external override returns (bool) {
-		_isWalletContract();
-		return transfer(recipient, amount);
 	}
 
 	function _isWalletContract() private view {
