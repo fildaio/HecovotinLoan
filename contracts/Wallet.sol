@@ -61,7 +61,6 @@ contract Wallet is AccessControl {
 	event BurnHTTEvent(address voter, uint256 amount);
 	event ClaimEvent(address caller, uint256 pid, uint256 amount);
 	event WithdrawEvent(address voter, address validator, uint256 amount);
-	event QuickWithdrawEvent(address voter, uint256 amount);
 	event RevokeEvent(address voter, address validator, uint256 amount);
 	event LiquidateEvent(address voter, uint256 amount);
 	event RepayVotingPoolEvent(address voter, address validator, uint256 amount);
@@ -221,7 +220,7 @@ contract Wallet is AccessControl {
 		uint256 borrowBalanceCurrentAmount = _loanContract.borrowBalanceCurrent(address(this));
 		uint256 savingBalance = _getBorrowableAmount();
 		uint256 borrowed = borrowBalanceCurrentAmount.mul(_config.denominator()).div(savingBalance);
-		require(borrowed > _config.liquidateRate(), "borrowed < liquidete limit");
+		require(borrowed > _config.liquidateRate(), "borrowed < liquidate limit");
 
 		if (_haveAllVotesBeenRevoked(validators) == false) {
 			// Step 1: revoke all votes.
@@ -250,16 +249,6 @@ contract Wallet is AccessControl {
 
 			emit LiquidateEvent(address(this), total);
 		}
-	}
-
-	function quickWithdrawal(address[] memory validators) public {
-		_withdrawalOn();
-		uint256 savingBalance = _getBorrowableAmount();
-		uint256 borrowAmount = savingBalance.mul(_config.borrowQuicklyRate()).div(_config.denominator()).sub(_loanContract.borrowBalanceCurrent(address(this)).div(_config.decimals()));
-		borrow(borrowAmount);
-		liquidate(validators);
-
-		emit QuickWithdrawEvent(msg.sender, borrowAmount);
 	}
 
 	function _haveAllVotesBeenRevoked(address[] memory validators) private view returns (bool allDone) {
