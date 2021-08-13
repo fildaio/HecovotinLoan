@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./GlobalConfig.sol";
 import "./HTTokenInterface.sol";
-import "./LoanStrategy.sol";
+import "./LoanInterface.sol";
 import "./ComptrollerInterface.sol";
 
 interface HecoNodeVoteInterface {
@@ -46,12 +46,11 @@ contract Wallet is AccessControl {
 	using Math for uint256;
 
 	address private _owner;
-	address private _admin;
 	address internal _firstLiquidater;
 	address internal _secondLiquidater;
 	GlobalConfig private _config;
 	HTTokenInterface private _HTT;
-	LoanStrategy private _loanContract;
+	LoanInterface private _loanContract;
 	BankInterface private _borrowContract;
 	BankInterface private _depositContract;
 	ComptrollerInterface private _comptrollerContract;
@@ -67,16 +66,11 @@ contract Wallet is AccessControl {
 	event RepayEvent(address caller, uint256 amount);
 	event EnterMarkets(address caller, address market);
 
-	constructor(
-		address owner,
-		address admin,
-		address config
-	) {
+	constructor(address owner, address config) {
 		_owner = owner;
-		_admin = admin;
 		_config = GlobalConfig(config);
 		_HTT = HTTokenInterface(_config.HTT());
-		_loanContract = LoanStrategy(_config.loanContract());
+		_loanContract = LoanInterface(_config.loanContract());
 		_depositContract = BankInterface(_config.depositContract());
 		_borrowContract = BankInterface(_config.borrowContract());
 		_comptrollerContract = ComptrollerInterface(_config.comptrollerContract());
@@ -88,11 +82,7 @@ contract Wallet is AccessControl {
 
 	receive() external payable {}
 
-	function allowance() public view returns (uint256) {
-		return _HTT.allowance(_owner, _config.loanContract());
-	}
-
-	function vote(address validator) public payable {
+	function vote(address validator) external payable {
 		_voteOn();
 		_isOwner();
 
@@ -103,10 +93,10 @@ contract Wallet is AccessControl {
 
 		voting.deposit{ value: amount }();
 		_depositHTT(amount);
-		emit VoteEvent(payable(msg.sender), amount);
+		emit VoteEvent(msg.sender, amount);
 	}
 
-	function checkMembership() public view returns (bool) {
+	function checkMembership() external view returns (bool) {
 		return _comptrollerContract.checkMembership(address(this), CTokenInterface(_config.depositContract()));
 	}
 
@@ -132,7 +122,7 @@ contract Wallet is AccessControl {
 		return _getBorrowableAmount().mul(_config.borrowRate()).div(_config.denominator()).sub(_loanContract.borrowBalanceCurrent(address(this)));
 	}
 
-	function borrow(uint256 borrowAmount) public {
+	function borrow(uint256 borrowAmount) external {
 		_isOwner();
 
 		require(borrowAmount > 0 && borrowAmount <= getBorrowLimit(), "amount > limit");
@@ -142,20 +132,20 @@ contract Wallet is AccessControl {
 		emit BorrowEvent(msg.sender, borrowAmount);
 	}
 
-	function getBalance() public view returns (uint256) {
+	function getBalance() external view returns (uint256) {
 		return address(this).balance;
 	}
 
-	function pendingReward(address validator) public view returns (uint256) {
+	function pendingReward(address validator) external view returns (uint256) {
 		HecoNodeVoteInterface voting = HecoNodeVoteInterface(validator);
 		return voting.getPendingReward(address(this));
 	}
 
-	function getPendingRewardFilda() public returns (uint256 balance, uint256 allocated) {
+	function getPendingRewardFilda() external returns (uint256 balance, uint256 allocated) {
 		return _loanContract.getCompBalanceWithAccrued(address(this));
 	}
 
-	function claimFilda() public {
+	function claimFilda() external {
 		_isOwner();
 		require(_loanContract.claimComp(address(this)), "claim filda error");
 		uint256 fildaBalance = _config.filda().balanceOf(address(this));
@@ -169,16 +159,16 @@ contract Wallet is AccessControl {
 		return _revokeVote(validator, amount);
 	}
 
-	function withdrawVoting(address validator) public returns (uint256 withdrawal) {
-		_isOwner();
-		_withdrawalOn();
+	// function withdrawVoting(address validator) external returns (uint256 withdrawal) {
+	// 	_isOwner();
+	// 	_withdrawalOn();
 
-		withdrawal = _withdrawOrRepay(validator, false);
-		payable(msg.sender).transfer(address(this).balance);
-		emit WithdrawEvent(msg.sender, validator, withdrawal);
-	}
+	// 	withdrawal = _withdrawOrRepay(validator, false);
+	// 	payable(msg.sender).transfer(address(this).balance);
+	// 	emit WithdrawEvent(msg.sender, validator, withdrawal);
+	// }
 
-	function withdrawAndRepay(address validator) public returns (uint256 withdrawal) {
+	function withdrawAndRepay(address validator) external returns (uint256 withdrawal) {
 		_isOwner();
 		_withdrawalOn();
 
@@ -190,7 +180,7 @@ contract Wallet is AccessControl {
 		emit WithdrawEvent(msg.sender, validator, withdrawal);
 	}
 
-	function withdrawAndRepayAll(address[] memory validators) public {
+	function withdrawAndRepayAll(address[] memory validators) external {
 		_isOwner();
 		_withdrawalOn();
 
@@ -200,7 +190,7 @@ contract Wallet is AccessControl {
 	}
 
 	//　单元测试专用，要去掉。
-	function repay() public payable {
+	function repay() external payable {
 		uint256 repayAmount = msg.value;
 		require(repayAmount > 0, "amount == 0");
 		require(repayAmount <= _loanContract.borrowBalanceCurrent(address(this)), "amount <= borrowBalance");
@@ -209,14 +199,14 @@ contract Wallet is AccessControl {
 		emit RepayEvent(msg.sender, repayAmount);
 	}
 
-	function withdrawAllVoting(address[] memory validators) public returns (uint256 totalAmount) {
+	function withdrawAllVoting(address[] memory validators) external returns (uint256 totalAmount) {
 		_isOwner();
 		_withdrawalOn();
 
 		return _withdrawAllVoting(validators, false);
 	}
 
-	function liquidate(address[] memory validators) public payable {
+	function liquidate(address[] memory validators) external payable {
 		uint256 borrowBalanceCurrentAmount = _loanContract.borrowBalanceCurrent(address(this));
 		uint256 savingBalance = _getBorrowableAmount();
 		uint256 borrowed = borrowBalanceCurrentAmount.mul(_config.denominator()).div(savingBalance);
@@ -245,7 +235,7 @@ contract Wallet is AccessControl {
 			if (_firstLiquidater != _owner) payable(_firstLiquidater).transfer(bonus);
 			if (_secondLiquidater != _owner) payable(_secondLiquidater).transfer(bonus);
 
-			payable(_admin).transfer(address(this).balance);
+			payable(_owner).transfer(address(this).balance);
 
 			emit LiquidateEvent(address(this), total);
 		}

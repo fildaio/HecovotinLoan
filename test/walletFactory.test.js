@@ -28,15 +28,13 @@ contract("WalletFactory and Wallet", async accounts => {
 		assert.equal(owner, accounts[0]);
 	});
 
-	it("Wallet.allowance()", async () => {
-		theWallet = await Wallet.at(walletAddress);
-		assert.ok(theWallet);
-
-		const allowance = await theWallet.allowance();
-		assert.equal(allowance, 0,);
+	it("GlobalConfig.comptrollerContract()", async () => {
+		const result = await instanceGlobalConfig.comptrollerContract();
+		assert.ok(result === "0xF0cb3D0424aAa3e63948D3F9aC964458BCfF3597", result);
 	});
 
 	it("Wallet.checkMembership()", async () => {
+		theWallet = await Wallet.at(walletAddress);
 		const checkMembership = await theWallet.checkMembership.call();
 		assert.ok(checkMembership, "checkMembership() == false");
 	});

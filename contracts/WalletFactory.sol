@@ -13,7 +13,7 @@ contract WalletFactory is WalletFactoryInterface {
 	function makeWallet(address configAddress) public {
 		require(_wallets[msg.sender] == address(0), "Wallet exists");
 
-		address walletAddress = address(new Wallet(msg.sender, msg.sender, configAddress));
+		address walletAddress = address(new Wallet(msg.sender, configAddress));
 		_wallets[msg.sender] = walletAddress;
 		_users[walletAddress] = msg.sender;
 
