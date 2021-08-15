@@ -39,6 +39,8 @@ interface BankInterface {
 	function repayBorrow() external payable;
 
 	function balanceOf(address owner) external view returns (uint256);
+
+	function exchangeRateCurrent() external returns (uint256);
 }
 
 contract Wallet is AccessControl {
@@ -290,7 +292,8 @@ contract Wallet is AccessControl {
 	}
 
 	function _exchangeRateStored() private returns (uint256) {
-		return _loanContract.exchangeRateCurrent();
+		// return _loanContract.exchangeRateCurrent();
+		return _depositContract.exchangeRateCurrent();
 	}
 
 	function _voteOn() private view {

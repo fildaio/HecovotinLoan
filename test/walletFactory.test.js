@@ -87,7 +87,7 @@ contract("WalletFactory and Wallet", async accounts => {
 	it("Wallet.getExchangeRate()", async () => {
 		const exchangeRate = await theWallet.getExchangeRate.call();
 		const exchangeRateBN = new BigNumber(exchangeRate).shiftedBy(18);
-		console.log("exchangeRate:", exchangeRateBN.toNumber());
+		console.log("exchangeRate:", exchangeRateBN.toFixed());
 		assert.ok(exchangeRateBN.gte(0));
 	});
 
