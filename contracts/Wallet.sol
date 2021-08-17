@@ -121,7 +121,11 @@ contract Wallet is AccessControl {
 	}
 
 	function getBorrowLimit() public returns (uint256) {
-		return _getBorrowableAmount().mul(_config.borrowRate()).div(_config.denominator()).sub(_loanContract.borrowBalanceCurrent(address(this)));
+		return _getBorrowableAmount().mul(_config.borrowRate()).div(_config.denominator()).sub(getBorrowed());
+	}
+
+	function getBorrowed() public returns (uint256) {
+		return _loanContract.borrowBalanceCurrent(address(this));
 	}
 
 	function borrow(uint256 borrowAmount) external {
@@ -195,7 +199,7 @@ contract Wallet is AccessControl {
 	function repay() external payable {
 		uint256 repayAmount = msg.value;
 		require(repayAmount > 0, "amount == 0");
-		require(repayAmount <= _loanContract.borrowBalanceCurrent(address(this)), "amount <= borrowBalance");
+		require(repayAmount <= getBorrowed(), "amount <= borrowBalance");
 		require(msg.sender.balance >= repayAmount, "insufficient balance");
 		_borrowContract.repayBorrow{ value: repayAmount }();
 		emit RepayEvent(msg.sender, repayAmount);
@@ -209,7 +213,7 @@ contract Wallet is AccessControl {
 	}
 
 	function liquidate(address[] memory validators) external payable {
-		uint256 borrowBalanceCurrentAmount = _loanContract.borrowBalanceCurrent(address(this));
+		uint256 borrowBalanceCurrentAmount = getBorrowed();
 		uint256 savingBalance = _getBorrowableAmount();
 		uint256 borrowed = borrowBalanceCurrentAmount.mul(_config.denominator()).div(savingBalance);
 		require(borrowed > _config.liquidateRate(), "borrowed < liquidate limit");
@@ -261,7 +265,8 @@ contract Wallet is AccessControl {
 		withdrawal = newBalance.sub(oldBalance);
 
 		if (toRepay) {
-			uint256 borrowed = _loanContract.borrowBalanceCurrent(msg.sender);
+			// uint256 borrowed = _loanContract.borrowBalanceCurrent(msg.sender);
+			uint256 borrowed = getBorrowed();
 			uint256 repayAmount = borrowed.min(address(this).balance);
 
 			if (repayAmount > 0) {

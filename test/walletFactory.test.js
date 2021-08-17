@@ -102,6 +102,13 @@ contract("WalletFactory and Wallet", async accounts => {
 		await theWallet.borrow(borrowAmount);
 	});
 
+	it("Wallet.getBorrowed()", async () => {
+		const borrowed = await theWallet.getBorrowed.call();
+		const borrowedBN = new BigNumber(borrowed);
+		console.log("borrowed:", borrowedBN.toNumber());
+		assert.ok(borrowedBN.eq(borrowAmount));
+	});
+
 	it("Wallet.repay()", async () => {
 		await theWallet.repay({
 			from: accounts[0],
