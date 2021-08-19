@@ -171,15 +171,6 @@ contract Wallet is AccessControl {
 		return _revokeVote(validator, amount);
 	}
 
-	function withdrawVoting(address validator) external returns (uint256 withdrawal) {
-		_isOwner();
-		_withdrawalOn();
-
-		withdrawal = _withdrawOrRepay(validator, false);
-		payable(msg.sender).transfer(address(this).balance);
-		emit WithdrawEvent(msg.sender, validator, withdrawal);
-	}
-
 	function withdrawAndRepay(address validator) external returns (uint256 withdrawal) {
 		_isOwner();
 		_withdrawalOn();
