@@ -1,0 +1,238 @@
+{
+	"compiler": {
+		"version": "0.8.4+commit.c7e474f2"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "owner",
+						"type": "address"
+					}
+				],
+				"name": "balanceOf",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "borrowAmount",
+						"type": "uint256"
+					}
+				],
+				"name": "borrow",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "exchangeRateCurrent",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "mintAmount",
+						"type": "uint256"
+					}
+				],
+				"name": "mint",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "redeemAmount",
+						"type": "uint256"
+					}
+				],
+				"name": "redeemUnderlying",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "repayBorrow",
+				"outputs": [],
+				"stateMutability": "payable",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"kind": "dev",
+			"methods": {},
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {},
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"contracts/Wallet.sol": "BankInterface"
+		},
+		"evmVersion": "istanbul",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": false,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"@openzeppelin/contracts/access/AccessControl.sol": {
+			"keccak256": "0x084f583de2c714665b0304529fe8b826a2809f29d03314e4dd9eea926e4bb0f3",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://b64becd1da9fe30ecdb65cf57e1da968bcbbecd6a4a3fa55bcc7c23568d482c0",
+				"dweb:/ipfs/QmcXnRpWL7P9kEe15LZ5yHV2CDLE2CNv9sBRqVnvVQLr5T"
+			]
+		},
+		"@openzeppelin/contracts/token/ERC20/IERC20.sol": {
+			"keccak256": "0x027b891937d20ccf213fdb9c31531574256de774bda99d3a70ecef6e1913ed2a",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://087318b21c528119f649899f5b5580566dd8d7b0303d4904bd0e8580c3545f14",
+				"dweb:/ipfs/Qmbn5Mj7aUn8hJuQ8VrQjjEXRsXyJKykgnjR9p4C3nfLtL"
+			]
+		},
+		"@openzeppelin/contracts/utils/Context.sol": {
+			"keccak256": "0x95098bd1d9c8dec4d80d3dedb88a0d949fa0d740ee99f2aa466bc308216ca6d5",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://7fec968dcd68e13961521fa3c7dd87baecad91a2653b19240e81f21cc4f3ba85",
+				"dweb:/ipfs/QmaXtsYt4Mphm8XHNUfk2me1cF3ssS2SqDBNFpYAzMjomC"
+			]
+		},
+		"@openzeppelin/contracts/utils/Strings.sol": {
+			"keccak256": "0x391d3ba97ab6856a16b225d6ee29617ad15ff00db70f3b4df1ab5ea33aa47c9d",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://d636ba90bbbeed04a1ea7fe9ec2466757e30fd38ba2ca173636dbf69a518735e",
+				"dweb:/ipfs/QmQwCB2BHnEuYR22PYt9HkpbgeFDhq4rHmaYqAZbX3WRC7"
+			]
+		},
+		"@openzeppelin/contracts/utils/introspection/ERC165.sol": {
+			"keccak256": "0x5718c5df9bd67ac68a796961df938821bb5dc0cd4c6118d77e9145afb187409b",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://d10e1d9b26042424789246603906ad06143bf9a928f4e99de8b5e3bdc662f549",
+				"dweb:/ipfs/Qmejonoaj5MLekPus229rJQHcC6E9dz2xorjHJR84fMfmn"
+			]
+		},
+		"@openzeppelin/contracts/utils/introspection/IERC165.sol": {
+			"keccak256": "0xa28007762d9da9db878dd421960c8cb9a10471f47ab5c1b3309bfe48e9e79ff4",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://796ab6e88af7bf0e78def0f059310c903af6a312b565344e0ff524a0f26e81c6",
+				"dweb:/ipfs/QmcsVgLgzWdor3UnAztUkXKNGcysm1MPneWksF72AvnwBx"
+			]
+		},
+		"@openzeppelin/contracts/utils/math/Math.sol": {
+			"keccak256": "0x2cc1535d318fe533ffa4ad30de28f5abed305ff748bc72d0344072ac10007e29",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://bdabbd463f6c33aeaf94e57e87716d80990f4bd6e62606bbab00db595d702d3c",
+				"dweb:/ipfs/QmdZ6gNZbC4nGBiUxkvQXozB5jzFNLwr6127zUzvdePtrK"
+			]
+		},
+		"@openzeppelin/contracts/utils/math/SafeMath.sol": {
+			"keccak256": "0x8666f020bd8fc9dc14f07e2ebc52b5f236ab4cdde7c77679b08cb2f94730043b",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://163776cbf565c722232393aa2d62cbe8a2ffb5805986abf4906c00e1e07450a6",
+				"dweb:/ipfs/QmPZoN9T3cb6o8bGhjBPZcz7im8T8DWhpr3tjLwhJJHx9N"
+			]
+		},
+		"contracts/ComptrollerInterface.sol": {
+			"keccak256": "0xc942770752de9e788af917627ccac16a3d67546bf8fa1052809d957854f34b12",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://10f8111569411356b9e72fbd6e7a29bee0228eaffb0601b7028452e89356fcad",
+				"dweb:/ipfs/QmcEEnGLC7J8vNUcAW7vkgibouxxRkHdifBgSUn563QuuS"
+			]
+		},
+		"contracts/GlobalConfig.sol": {
+			"keccak256": "0x27f47f707a62fbda7dab8234259a98ca6312ac547430c14352f8653d6da932f6",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://4ed5a0bcbc1beba77bd8f9415f615272df6e1da9b8bf1da503bf0f6b12ab7775",
+				"dweb:/ipfs/Qmaswebvd9t9XLmqGCyPE6UtW1Fg2sGRQqdsf656Naw6r8"
+			]
+		},
+		"contracts/HTTokenInterface.sol": {
+			"keccak256": "0x9931c9af944bdd26bb0c316be2eaa45883334d7a72ffb3e05159346675635286",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://6059c2f3425a0609a0eb078de4a7fa9568709081b631646fb05de7f36fdc547b",
+				"dweb:/ipfs/QmbTCi1EnJC9PRXTq61DXnPicsrBzbKvxqtp6Ubtyeo6fk"
+			]
+		},
+		"contracts/LoanInterface.sol": {
+			"keccak256": "0xca8b8cc0de19fe2e9c79e06c3f96b8f73ec795bc91b0adb12ed22b4f799c03e5",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://3b46aa0ec80cb39a142c38648a5b6fd15fedbccd1bd142aef7dc192caacfe2c7",
+				"dweb:/ipfs/Qmay8aUF75jPFGXC2kFWz87ijCgTT3Rf2FtC3CgB5GbmZJ"
+			]
+		},
+		"contracts/Wallet.sol": {
+			"keccak256": "0x5b8d74e016c7f841076bf0466580f5cf2d1a01aa5ab6547d7e5014446dc527a5",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://7362cde9e3d4249f1fc5bb83bfd3289a6387dcc0d90fdbdd538f93888286a09d",
+				"dweb:/ipfs/QmdiL9LVhSRccotRxsf7EW7FocD846vmJoDUZU9NNfTsB9"
+			]
+		}
+	},
+	"version": 1
+}

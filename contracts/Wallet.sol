@@ -121,7 +121,13 @@ contract Wallet is AccessControl {
 	}
 
 	function getBorrowLimit() public returns (uint256) {
-		return _getBorrowableAmount().mul(_config.borrowRate()).div(_config.denominator()).sub(getBorrowed());
+		uint256 borrowAble = _getBorrowableAmount().mul(_config.borrowRate()).div(_config.denominator());
+		uint256 borrowed = getBorrowed();
+		if (borrowAble > borrowed) {
+			return borrowAble.sub(borrowed);
+		} else {
+			return 0;
+		}
 	}
 
 	function getBorrowed() public returns (uint256) {
