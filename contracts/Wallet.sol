@@ -50,6 +50,7 @@ contract Wallet is AccessControl {
 	address private _owner;
 	address internal _firstLiquidater;
 	address internal _secondLiquidater;
+	bool private _isLiquidating = false;
 	GlobalConfig private _config;
 	HTTokenInterface private _HTT;
 	LoanInterface private _loanContract;
@@ -87,6 +88,7 @@ contract Wallet is AccessControl {
 	function vote(address validator) external payable {
 		_voteOn();
 		_isOwner();
+		_checkLiquidationOff();
 
 		HecoNodeVoteInterface voting = HecoNodeVoteInterface(validator);
 
@@ -136,6 +138,7 @@ contract Wallet is AccessControl {
 
 	function borrow(uint256 borrowAmount) external {
 		_isOwner();
+		_checkLiquidationOff();
 
 		require(borrowAmount > 0 && borrowAmount <= getBorrowLimit(), "amount > limit");
 		require(_borrowContract.borrow(borrowAmount) == 0, "Failed to borrow");
@@ -172,6 +175,7 @@ contract Wallet is AccessControl {
 	}
 
 	function withdrawAndRepay(address validator) external returns (uint256 withdrawal) {
+		_checkLiquidationOff();
 		_isOwner();
 		_withdrawalOn();
 
@@ -203,6 +207,7 @@ contract Wallet is AccessControl {
 	}
 
 	function withdrawAllVoting(address[] memory validators) external returns (uint256 totalAmount) {
+		_checkLiquidationOff();
 		_isOwner();
 		_withdrawalOn();
 
@@ -210,6 +215,9 @@ contract Wallet is AccessControl {
 	}
 
 	function liquidate(address[] memory validators) external payable {
+		require(validators.length > 0, "validators is empty");
+		require(msg.sender == tx.origin, "msg.sender is contract");
+
 		uint256 borrowBalanceCurrentAmount = getBorrowed();
 		uint256 savingBalance = _getBorrowableAmount();
 		uint256 borrowed = borrowBalanceCurrentAmount.mul(_config.denominator()).div(savingBalance);
@@ -217,6 +225,10 @@ contract Wallet is AccessControl {
 
 		if (_haveAllVotesBeenRevoked(validators) == false) {
 			// Step 1: revoke all votes.
+			_checkLiquidationOff();
+
+			require(msg.value == 0, "no need to pay");
+
 			uint256 amount;
 			address validator;
 			for (uint8 i = 0; i < validators.length; i++) {
@@ -225,6 +237,7 @@ contract Wallet is AccessControl {
 				revokeVote(validator, amount);
 			}
 
+			_isLiquidating = true;
 			_firstLiquidater = msg.sender;
 		} else {
 			// Step 2: withdraw all.
@@ -234,17 +247,28 @@ contract Wallet is AccessControl {
 
 			_secondLiquidater = msg.sender;
 
-			uint256 bonus = total.mul(_config.bonusRateForLiquidater()).div(_config.denominator()).div(2);
-			if (_firstLiquidater != _owner) payable(_firstLiquidater).transfer(bonus);
+			uint256 bonus = 0;
+			if (_firstLiquidater == address(0)) {
+				bonus = total.mul(_config.bonusRateForLiquidater()).div(_config.denominator());
+			} else {
+				bonus = total.mul(_config.bonusRateForLiquidater()).div(_config.denominator()).div(2);
+
+				if (_firstLiquidater != _owner) payable(_firstLiquidater).transfer(bonus);
+			}
+
 			if (_secondLiquidater != _owner) payable(_secondLiquidater).transfer(bonus);
 
 			payable(_owner).transfer(address(this).balance);
+
+			_isLiquidating = false;
 
 			emit LiquidateEvent(address(this), total);
 		}
 	}
 
 	function _haveAllVotesBeenRevoked(address[] memory validators) private view returns (bool allDone) {
+		allDone = true;
+
 		uint256 withdrawExitBlock;
 		for (uint8 i = 0; i < validators.length; i++) {
 			(, , , withdrawExitBlock) = this.getUserVotingSummary(validators[i]);
@@ -296,6 +320,10 @@ contract Wallet is AccessControl {
 	function _exchangeRateStored() private returns (uint256) {
 		// return _loanContract.exchangeRateCurrent();
 		return _depositContract.exchangeRateCurrent();
+	}
+
+	function _checkLiquidationOff() private view {
+		require(_isLiquidating == false, "liquidating...");
 	}
 
 	function _voteOn() private view {
