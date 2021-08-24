@@ -4,6 +4,7 @@ pragma solidity >=0.4.22 <0.9.0;
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 import "./GlobalConfig.sol";
 import "./HTTokenInterface.sol";
 import "./LoanInterface.sol";
@@ -46,6 +47,7 @@ interface BankInterface {
 contract Wallet is AccessControl {
 	using SafeMath for uint256;
 	using Math for uint256;
+	using Address for address;
 
 	address private _owner;
 	address internal _firstLiquidater;
@@ -57,6 +59,7 @@ contract Wallet is AccessControl {
 	BankInterface private _borrowContract;
 	BankInterface private _depositContract;
 	ComptrollerInterface private _comptrollerContract;
+	address[] private _voted;
 
 	event VoteEvent(address voter, uint256 amount);
 	event BorrowEvent(address borrower, uint256 amount);
@@ -97,6 +100,12 @@ contract Wallet is AccessControl {
 
 		voting.deposit{ value: amount }();
 		_depositHTT(amount);
+
+		(bool isVoted, ) = _isVoted(validator);
+		if (!isVoted) {
+			_voted.push(validator);
+		}
+
 		emit VoteEvent(msg.sender, amount);
 	}
 
@@ -187,11 +196,11 @@ contract Wallet is AccessControl {
 		emit WithdrawEvent(msg.sender, validator, withdrawal);
 	}
 
-	function withdrawAndRepayAll(address[] memory validators) external {
+	function withdrawAndRepayAll() external {
 		_isOwner();
 		_withdrawalOn();
 
-		uint256 withdrawal = _withdrawAllVoting(validators, true);
+		uint256 withdrawal = _withdrawAllVoting(true);
 		payable(msg.sender).transfer(address(this).balance);
 		emit WithdrawEvent(msg.sender, address(0), withdrawal);
 	}
@@ -206,24 +215,15 @@ contract Wallet is AccessControl {
 		emit RepayEvent(msg.sender, repayAmount);
 	}
 
-	function withdrawAllVoting(address[] memory validators) external returns (uint256 totalAmount) {
-		_checkLiquidationOff();
-		_isOwner();
-		_withdrawalOn();
-
-		return _withdrawAllVoting(validators, false);
-	}
-
-	function liquidate(address[] memory validators) external payable {
-		require(validators.length > 0, "validators is empty");
-		require(msg.sender == tx.origin, "msg.sender is contract");
+	function liquidate() external payable {
+		require(msg.sender.isContract() == false, "msg.sender is contract");
 
 		uint256 borrowBalanceCurrentAmount = getBorrowed();
 		uint256 savingBalance = _getBorrowableAmount();
 		uint256 borrowed = borrowBalanceCurrentAmount.mul(_config.denominator()).div(savingBalance);
 		require(borrowed > _config.liquidateRate(), "borrowed < liquidate limit");
 
-		if (_haveAllVotesBeenRevoked(validators) == false) {
+		if (_haveAllVotesBeenRevoked() == false) {
 			// Step 1: revoke all votes.
 			_checkLiquidationOff();
 
@@ -231,8 +231,8 @@ contract Wallet is AccessControl {
 
 			uint256 amount;
 			address validator;
-			for (uint8 i = 0; i < validators.length; i++) {
-				validator = validators[i];
+			for (uint8 i = 0; i < _voted.length; i++) {
+				validator = _voted[i];
 				(amount, , , ) = this.getUserVotingSummary(validator);
 				revokeVote(validator, amount);
 			}
@@ -243,7 +243,7 @@ contract Wallet is AccessControl {
 			// Step 2: withdraw all.
 			require(msg.value >= borrowBalanceCurrentAmount, "insufficient amount");
 
-			uint256 total = _withdrawAllVoting(validators, true);
+			uint256 total = _withdrawAllVoting(true);
 
 			_secondLiquidater = msg.sender;
 
@@ -266,12 +266,12 @@ contract Wallet is AccessControl {
 		}
 	}
 
-	function _haveAllVotesBeenRevoked(address[] memory validators) private view returns (bool allDone) {
+	function _haveAllVotesBeenRevoked() private view returns (bool allDone) {
 		allDone = true;
 
 		uint256 withdrawExitBlock;
-		for (uint8 i = 0; i < validators.length; i++) {
-			(, , , withdrawExitBlock) = this.getUserVotingSummary(validators[i]);
+		for (uint8 i = 0; i < _voted.length; i++) {
+			(, , , withdrawExitBlock) = this.getUserVotingSummary(_voted[i]);
 			if (block.number.sub(withdrawExitBlock) < _config.withdrawLockPeriod()) {
 				return allDone = false;
 			}
@@ -306,11 +306,11 @@ contract Wallet is AccessControl {
 		}
 	}
 
-	function _withdrawAllVoting(address[] memory validators, bool toRepay) private returns (uint256 totalAmount) {
+	function _withdrawAllVoting(bool toRepay) private returns (uint256 totalAmount) {
 		uint256 withdrawPendingAmount;
 		address validator;
-		for (uint8 i = 0; i < validators.length; i++) {
-			validator = validators[i];
+		for (uint8 i = 0; i < _voted.length; i++) {
+			validator = _voted[i];
 			(, , withdrawPendingAmount, ) = this.getUserVotingSummary(validator);
 			_withdrawOrRepay(validator, toRepay);
 			totalAmount += withdrawPendingAmount;
@@ -341,6 +341,17 @@ contract Wallet is AccessControl {
 	function _revokeVote(address validator, uint256 amount) private returns (bool success) {
 		HecoNodeVoteInterface voting = HecoNodeVoteInterface(validator);
 		voting.exitVote(amount);
+
+		(uint256 totalAmount, , , ) = this.getUserVotingSummary(validator);
+		if (totalAmount == 0) {
+			(bool isVoted, uint8 index) = _isVoted(validator);
+			if (isVoted) {
+				delete _voted[index];
+				_voted[index] = _voted[_voted.length - 1];
+				_voted.pop();
+			}
+		}
+
 		emit RevokeEvent(msg.sender, validator, amount);
 		return true;
 	}
@@ -371,5 +382,15 @@ contract Wallet is AccessControl {
 
 	function _getBorrowableAmount() private returns (uint256) {
 		return _depositContract.balanceOf(address(this)).mul(getExchangeRate()).div(1e18);
+	}
+
+	function _isVoted(address validator) private view returns (bool isVoted, uint8 index) {
+		for (uint8 i = 0; i < _voted.length; i++) {
+			if (_voted[i] == validator) {
+				index = i;
+				isVoted = true;
+				break;
+			}
+		}
 	}
 }
