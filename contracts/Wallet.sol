@@ -89,6 +89,8 @@ contract Wallet is AccessControl {
 	receive() external payable {}
 
 	function vote(address validator) external payable {
+		require(_config.validators(validator) == true, "it's not a validator");
+
 		_voteOn();
 		_isOwner();
 		_checkLiquidationOff();
@@ -203,16 +205,6 @@ contract Wallet is AccessControl {
 		uint256 withdrawal = _withdrawAllVoting(true);
 		payable(msg.sender).transfer(address(this).balance);
 		emit WithdrawEvent(msg.sender, address(0), withdrawal);
-	}
-
-	//　单元测试专用，要去掉。
-	function repay() external payable {
-		uint256 repayAmount = msg.value;
-		require(repayAmount > 0, "amount == 0");
-		require(repayAmount <= getBorrowed(), "amount <= borrowBalance");
-		require(msg.sender.balance >= repayAmount, "insufficient balance");
-		_borrowContract.repayBorrow{ value: repayAmount }();
-		emit RepayEvent(msg.sender, repayAmount);
 	}
 
 	function liquidate() external payable {

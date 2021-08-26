@@ -109,13 +109,6 @@ contract("WalletFactory and Wallet", async accounts => {
 		assert.ok(borrowedBN.eq(borrowAmount));
 	});
 
-	it("Wallet.repay()", async () => {
-		await theWallet.repay({
-			from: accounts[0],
-			value: borrowAmount
-		});
-	});
-
 	it("Wallet.revokeVote()", async () => {
 		const userVotingSummary = await theWallet.getUserVotingSummary.call(validator);
 		if (userVotingSummary[0] && userVotingSummary[0] >= depositAmount) {

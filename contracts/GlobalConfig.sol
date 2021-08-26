@@ -4,8 +4,6 @@ pragma solidity >=0.4.22 <0.9.0;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-// import "./LoanInterface.sol";
-
 contract GlobalConfig is AccessControl {
 	bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 	bytes32 public constant CONFIG_ROLE = keccak256("CONFIG_ROLE");
@@ -21,16 +19,14 @@ contract GlobalConfig is AccessControl {
 	uint256 public withdrawLockPeriod = 86400;
 	IERC20 public filda;
 	address public HTT;
-	address public votingContract;
 	address public loanContract;
 	address public depositContract;
 	address public borrowContract;
 	address public comptrollerContract;
-	// address public cTokenContract;
+	mapping(address => bool) public validators;
 
 	constructor(
 		address configRole,
-		address argVotingContract,
 		address argLoanContract,
 		address argDepositContract,
 		address argBorrowContract,
@@ -41,13 +37,20 @@ contract GlobalConfig is AccessControl {
 		_setupRole(ADMIN_ROLE, msg.sender);
 		_setupRole(CONFIG_ROLE, configRole);
 
-		votingContract = argVotingContract;
 		loanContract = argLoanContract;
 		depositContract = argDepositContract;
 		borrowContract = argBorrowContract;
 		filda = IERC20(argFildaContract);
 		comptrollerContract = argComptrollerContract;
 		HTT = argHTTContract;
+	}
+
+	function addValidator(address validator) public {
+		validators[validator] = true;
+	}
+
+	function removeValidator(address validator) public {
+		validators[validator] = false;
 	}
 
 	function setConfigRole(address configRoleAddress) public {
@@ -75,11 +78,6 @@ contract GlobalConfig is AccessControl {
 		filda = IERC20(contractAddress);
 	}
 
-	function setVotingContract(address contractAddress) public {
-		_byConfigRole();
-		votingContract = contractAddress;
-	}
-
 	function setLoanContract(address contractAddress) public {
 		_byConfigRole();
 		loanContract = contractAddress;
@@ -99,11 +97,6 @@ contract GlobalConfig is AccessControl {
 		_byConfigRole();
 		comptrollerContract = contractAddress;
 	}
-
-	// function setCTokenContract(address contractAddress) public {
-	// 	_byConfigRole();
-	// 	cTokenContract = contractAddress;
-	// }
 
 	function setHTTokenDecimals(uint256 value) public {
 		_byConfigRole();

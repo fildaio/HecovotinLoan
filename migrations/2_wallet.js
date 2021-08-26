@@ -22,10 +22,10 @@ module.exports = async function (deployer, network, accounts) {
 	const httInstance = await HTToken.at(theConfig.htt);
 	console.log("HTToken: ", HTToken.address);
 
-	await deployer.deploy(
+	const globalConfig = await deployer.deploy(
 		GlobalConfig,
 		accounts[0],
-		theConfig.vote,
+		// theConfig.vote,
 		LoanViaFilda.address,
 		theConfig.deposit,
 		theConfig.borrow,
@@ -36,6 +36,7 @@ module.exports = async function (deployer, network, accounts) {
 	);
 	await GlobalConfig.deployed();
 	console.log("GlobalConfig: ", GlobalConfig.address);
+	globalConfig.addValidator(theConfig.vote);
 
 	await deployer.deploy(WalletFactory)
 	console.log("WalletFactory: ", WalletFactory.address);
