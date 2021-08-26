@@ -191,6 +191,18 @@ contract Wallet is AccessControl {
 		_withdrawalOn();
 
 		withdrawal = _withdrawOrRepay(validator, true);
+
+		// remove the validator from _voted.
+		(uint256 totalAmount, , , ) = this.getUserVotingSummary(validator);
+		if (totalAmount == 0) {
+			(bool isVoted, uint8 index) = _isVoted(validator);
+			if (isVoted) {
+				delete _voted[index];
+				_voted[index] = _voted[_voted.length - 1];
+				_voted.pop();
+			}
+		}
+
 		uint256 balance = address(this).balance;
 		if (balance > 0) {
 			payable(msg.sender).transfer(balance);
@@ -304,9 +316,15 @@ contract Wallet is AccessControl {
 		for (uint8 i = 0; i < _voted.length; i++) {
 			validator = _voted[i];
 			(, , withdrawPendingAmount, ) = this.getUserVotingSummary(validator);
+
 			_withdrawOrRepay(validator, toRepay);
+			delete _voted[i];
+
 			totalAmount += withdrawPendingAmount;
 		}
+
+		// clean up _voted
+		_voted = new address[](0);
 	}
 
 	function _exchangeRateStored() private returns (uint256) {
@@ -333,17 +351,6 @@ contract Wallet is AccessControl {
 	function _revokeVote(address validator, uint256 amount) private returns (bool success) {
 		HecoNodeVoteInterface voting = HecoNodeVoteInterface(validator);
 		voting.exitVote(amount);
-
-		(uint256 totalAmount, , , ) = this.getUserVotingSummary(validator);
-		if (totalAmount == 0) {
-			(bool isVoted, uint8 index) = _isVoted(validator);
-			if (isVoted) {
-				delete _voted[index];
-				_voted[index] = _voted[_voted.length - 1];
-				_voted.pop();
-			}
-		}
-
 		emit RevokeEvent(msg.sender, validator, amount);
 		return true;
 	}
