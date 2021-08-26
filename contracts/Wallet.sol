@@ -214,15 +214,6 @@ contract Wallet is AccessControl {
 		emit WithdrawEvent(msg.sender, validator, withdrawal);
 	}
 
-	function withdrawAndRepayAll() external {
-		_isOwner();
-		_withdrawalOn();
-
-		uint256 withdrawal = _withdrawAllVoting(true);
-		payable(msg.sender).transfer(address(this).balance);
-		emit WithdrawEvent(msg.sender, address(0), withdrawal);
-	}
-
 	function liquidate() external payable {
 		require(msg.sender.isContract() == false, "msg.sender is contract");
 
