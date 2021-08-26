@@ -46,10 +46,12 @@ contract GlobalConfig is AccessControl {
 	}
 
 	function addValidator(address validator) public {
+		_byConfigRole();
 		validators[validator] = true;
 	}
 
 	function removeValidator(address validator) public {
+		_byConfigRole();
 		validators[validator] = false;
 	}
 
