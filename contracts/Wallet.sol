@@ -182,6 +182,10 @@ contract Wallet is AccessControl {
 
 	function revokeVote(address validator, uint256 amount) public returns (bool success) {
 		_isOwner();
+
+		(bool isVoted, ) = _isVoted(validator);
+		require(isVoted, "didn't vote for it");
+
 		return _revokeVote(validator, amount);
 	}
 
@@ -190,17 +194,17 @@ contract Wallet is AccessControl {
 		_isOwner();
 		_withdrawalOn();
 
+		(bool isVoted, uint8 index) = _isVoted(validator);
+		require(isVoted, "didn't vote for it");
+
 		withdrawal = _withdrawOrRepay(validator, true);
 
 		// remove the validator from _voted.
 		(uint256 totalAmount, , , ) = this.getUserVotingSummary(validator);
 		if (totalAmount == 0) {
-			(bool isVoted, uint8 index) = _isVoted(validator);
-			if (isVoted) {
-				delete _voted[index];
-				_voted[index] = _voted[_voted.length - 1];
-				_voted.pop();
-			}
+			delete _voted[index];
+			_voted[index] = _voted[_voted.length - 1];
+			_voted.pop();
 		}
 
 		uint256 balance = address(this).balance;
