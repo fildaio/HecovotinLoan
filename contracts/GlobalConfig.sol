@@ -13,7 +13,6 @@ contract GlobalConfig is AccessControl {
 	uint256 public decimals = 1e18;
 	uint256 public denominator = 10000;
 	uint256 public borrowRate = 8000;
-	uint256 public borrowQuicklyRate = 9700;
 	uint256 public liquidateRate = 9000;
 	uint256 public bonusRateForLiquidater = 300;
 	uint256 public withdrawLockPeriod = 86400;
@@ -106,26 +105,26 @@ contract GlobalConfig is AccessControl {
 	}
 
 	function setDenominator(uint256 value) public {
+		require(value > borrowRate);
+		require(value > bonusRateForLiquidater);
 		_byConfigRole();
 		denominator = value;
 	}
 
 	function setBorrowRate(uint256 value) public {
+		require(value < denominator);
 		_byConfigRole();
 		borrowRate = value;
 	}
 
-	function setBorrowQuicklyRate(uint256 value) public {
-		_byConfigRole();
-		borrowQuicklyRate = value;
-	}
-
 	function setLiquidateRate(uint256 value) public {
+		require(value < denominator);
 		_byConfigRole();
 		liquidateRate = value;
 	}
 
 	function setBonusRateForLiquidater(uint256 value) public {
+		require(value < denominator);
 		_byConfigRole();
 		bonusRateForLiquidater = value;
 	}
